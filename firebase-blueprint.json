@@ -1,0 +1,1214 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Learner profile, country selection, language preference, points balance, cumulative earned score, equipped rewards, and progression counters for Math Master.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Authentication user UID."
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Learner display name."
+        },
+        "countryCode": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 3,
+          "pattern": "^[A-Z]{2,3}$",
+          "description": "ISO 3166-1 alpha-2 country code selected by the learner."
+        },
+        "countryNameAr": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Selected country name in Arabic."
+        },
+        "countryNameEn": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Selected country name in English."
+        },
+        "preferredLang": {
+          "type": "string",
+          "enum": ["ar", "en"],
+          "description": "UI language preference."
+        },
+        "points": {
+          "type": "integer",
+          "description": "Current spendable points balance (increases on first-time wins, decreases on reward shop redemptions)."
+        },
+        "totalEarnedPoints": {
+          "type": "integer",
+          "description": "Lifetime cumulative points earned (used for global leaderboard ranking)."
+        },
+        "currentStage": {
+          "type": "integer",
+          "description": "Overall progression index (1 to 240)."
+        },
+        "completedStagesCount": {
+          "type": "integer",
+          "description": "Total stages completed across all 8 sections (0 to 240)."
+        },
+        "completedSectionsCount": {
+          "type": "integer",
+          "description": "Total sections with all 30 stages completed (0 to 8)."
+        },
+        "certificatesCount": {
+          "type": "integer",
+          "description": "Total official section certificates earned (0 to 8)."
+        },
+        "equippedAvatarId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 50,
+          "pattern": "^[a-z0-9\\-]+$",
+          "description": "Currently equipped avatar identifier (built-in starter avatar, Google photo, or owned shop avatar)."
+        },
+        "equippedTitleId": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Currently equipped reward title identifier (empty string if none)."
+        },
+        "equippedBadgeId": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Currently equipped digital medal/badge identifier (empty string if none)."
+        },
+        "photoUrl": {
+          "type": "string",
+          "maxLength": 512,
+          "description": "Optional verified Google profile photo URL."
+        },
+        "lastLedgerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Identifier of the latest verified point or purchase ledger entry."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of profile creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last profile update."
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "countryCode",
+        "countryNameAr",
+        "countryNameEn",
+        "preferredLang",
+        "points",
+        "totalEarnedPoints",
+        "currentStage",
+        "completedStagesCount",
+        "completedSectionsCount",
+        "certificatesCount",
+        "equippedAvatarId",
+        "equippedTitleId",
+        "equippedBadgeId",
+        "photoUrl",
+        "lastLedgerId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Isolated owner-only contact and authentication provider metadata.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Owner Firebase Auth UID."
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 254,
+          "description": "Verified email address if signed in with Google."
+        },
+        "phoneNumber": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "Verified E.164 phone number if signed in with Phone Auth."
+        },
+        "authProvider": {
+          "type": "string",
+          "enum": ["google.com", "phone"],
+          "description": "Authentication provider used."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last private metadata sync."
+        }
+      },
+      "required": ["uid", "authProvider", "updatedAt"]
+    },
+    "LeaderboardEntry": {
+      "title": "LeaderboardEntry",
+      "description": "Non-PII public projection of a learner's verified cumulative score, equipped cosmetics, and mastery counts for the global leaderboard.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Learner UID."
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Public display name."
+        },
+        "countryCode": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 3,
+          "pattern": "^[A-Z]{2,3}$",
+          "description": "Country ISO code."
+        },
+        "avatarId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 50,
+          "pattern": "^[a-z0-9\\-]+$",
+          "description": "Equipped avatar ID."
+        },
+        "photoUrl": {
+          "type": "string",
+          "maxLength": 512,
+          "description": "Optional verified Google photo URL."
+        },
+        "titleId": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Equipped reward title ID."
+        },
+        "badgeId": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Equipped showcase medal ID."
+        },
+        "totalEarnedPoints": {
+          "type": "integer",
+          "description": "Verified cumulative earned points (atomically synced with users/{uid})."
+        },
+        "completedStages": {
+          "type": "integer",
+          "description": "Total completed stages (0 to 240)."
+        },
+        "completedSections": {
+          "type": "integer",
+          "description": "Total completed sections (0 to 8)."
+        },
+        "certificatesCount": {
+          "type": "integer",
+          "description": "Total certificates earned (0 to 8)."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of latest update."
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "countryCode",
+        "avatarId",
+        "photoUrl",
+        "titleId",
+        "badgeId",
+        "totalEarnedPoints",
+        "completedStages",
+        "completedSections",
+        "certificatesCount",
+        "updatedAt"
+      ]
+    },
+    "RewardPurchase": {
+      "title": "RewardPurchase",
+      "description": "Immutable receipt proving a learner redeemed points for a specific reward shop item.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Owner UID."
+        },
+        "itemId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 50,
+          "pattern": "^[a-z0-9\\-]+$",
+          "description": "Catalog item identifier."
+        },
+        "category": {
+          "type": "string",
+          "enum": ["badge", "avatar", "title"],
+          "description": "Reward item category."
+        },
+        "cost": {
+          "type": "integer",
+          "description": "Exact catalog point cost deducted at redemption time."
+        },
+        "purchasedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of purchase."
+        }
+      },
+      "required": ["uid", "itemId", "category", "cost", "purchasedAt"]
+    },
+    "PointTransaction": {
+      "title": "PointTransaction",
+      "description": "Immutable, deterministic audit ledger of every point award and reward shop redemption.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Owner UID."
+        },
+        "txId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Deterministic transaction identifier preventing duplicate rewards or purchases."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "stage_win",
+            "stage_perfect",
+            "section_complete",
+            "exam_pass",
+            "exam_perfect",
+            "daily_win",
+            "daily_perfect",
+            "duel_win",
+            "duel_draw",
+            "duel_part",
+            "bank_tier_mastery",
+            "genius_solve",
+            "shop_purchase"
+          ],
+          "description": "Operation classification."
+        },
+        "refId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Referenced stageId, sectionId, or shop itemId."
+        },
+        "amount": {
+          "type": "integer",
+          "description": "Signed point delta (+100, +50, +200, +500, or -cost)."
+        },
+        "balanceAfter": {
+          "type": "integer",
+          "description": "Spendable point balance immediately after the operation."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of transaction."
+        }
+      },
+      "required": ["uid", "txId", "type", "refId", "amount", "balanceAfter", "createdAt"]
+    },
+    "StageProgress": {
+      "title": "StageProgress",
+      "description": "Tracks a learner's actual completion, best score, stars, attempts, and anti-duplicate reward flags for a specific stage.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Owner Firebase Auth UID."
+        },
+        "stageId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 40,
+          "pattern": "^(arithmetic|fractions|algebra|geometry|measurement|ratios|statistics|advanced)-s([1-9]|[12][0-9]|30)$",
+          "description": "Canonical stage identifier."
+        },
+        "sectionId": {
+          "type": "string",
+          "enum": ["arithmetic", "fractions", "algebra", "geometry", "measurement", "ratios", "statistics", "advanced"],
+          "description": "Section identifier."
+        },
+        "stageNumber": {
+          "type": "integer",
+          "description": "Stage number within the section (1 to 30)."
+        },
+        "bestScore": {
+          "type": "integer",
+          "description": "Highest score achieved (0 to 100)."
+        },
+        "lastScore": {
+          "type": "integer",
+          "description": "Most recent score achieved (0 to 100)."
+        },
+        "bestStars": {
+          "type": "integer",
+          "description": "Highest stars earned (0 to 3)."
+        },
+        "passed": {
+          "type": "boolean",
+          "description": "True once the learner scores >= 70."
+        },
+        "attempts": {
+          "type": "integer",
+          "description": "Total completed attempts for this stage."
+        },
+        "rewardClaimed": {
+          "type": "boolean",
+          "description": "True once the first-win (+100) point reward has been granted."
+        },
+        "perfectRewardClaimed": {
+          "type": "boolean",
+          "description": "True once the 100/100 score bonus (+50) has been granted."
+        },
+        "totalCorrect": {
+          "type": "integer",
+          "description": "Cumulative correctly answered questions across all attempts on this stage."
+        },
+        "totalWrong": {
+          "type": "integer",
+          "description": "Cumulative wrongly answered questions across all attempts on this stage."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of first attempt."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of latest attempt."
+        }
+      },
+      "required": [
+        "uid",
+        "stageId",
+        "sectionId",
+        "stageNumber",
+        "bestScore",
+        "lastScore",
+        "bestStars",
+        "passed",
+        "attempts",
+        "rewardClaimed",
+        "perfectRewardClaimed",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SectionProgress": {
+      "title": "SectionProgress",
+      "description": "Tracks unlocked stage level, completed stages count, final exam score, section completion bonus flag, and certificate status for a section.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Owner Firebase Auth UID."
+        },
+        "sectionId": {
+          "type": "string",
+          "enum": ["arithmetic", "fractions", "algebra", "geometry", "measurement", "ratios", "statistics", "advanced"],
+          "description": "Section identifier."
+        },
+        "unlockedStage": {
+          "type": "integer",
+          "description": "Highest unlocked stage number in this section (1 to 30)."
+        },
+        "completedStagesCount": {
+          "type": "integer",
+          "description": "Number of distinct stages passed in this section (0 to 30)."
+        },
+        "totalStars": {
+          "type": "integer",
+          "description": "Sum of best stars across stages in this section (0 to 90)."
+        },
+        "sectionRewardClaimed": {
+          "type": "boolean",
+          "description": "True once the 30-stage section completion bonus (+500) has been granted."
+        },
+        "examBestScore": {
+          "type": "integer",
+          "description": "Best score on the 30-question section final exam (0 to 100)."
+        },
+        "examLastScore": {
+          "type": "integer",
+          "description": "Most recent score on the 30-question section final exam (0 to 100)."
+        },
+        "examAttempts": {
+          "type": "integer",
+          "description": "Number of completed section final exam attempts."
+        },
+        "examPassed": {
+          "type": "boolean",
+          "description": "True once the learner scores >= 70 on the section final exam."
+        },
+        "examRewardClaimed": {
+          "type": "boolean",
+          "description": "True once the section exam first-win (+200) point reward has been granted."
+        },
+        "examPerfectRewardClaimed": {
+          "type": "boolean",
+          "description": "True once the section exam 100/100 perfect bonus (+50) has been granted."
+        },
+        "certificateId": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Unique certificate identifier issued upon passing the section final exam."
+        },
+        "lastExamAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of latest section final exam attempt."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of first progress in this section."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of latest update in this section."
+        }
+      },
+      "required": [
+        "uid",
+        "sectionId",
+        "unlockedStage",
+        "completedStagesCount",
+        "totalStars",
+        "sectionRewardClaimed",
+        "examBestScore",
+        "examLastScore",
+        "examAttempts",
+        "examPassed",
+        "examRewardClaimed",
+        "certificateId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ExamAttempt": {
+      "title": "ExamAttempt",
+      "description": "Immutable record of an independent section final exam submission including score, breakdown, duration, and awarded points.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Owner Firebase Auth UID."
+        },
+        "attemptId": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 64,
+          "pattern": "^(arithmetic|fractions|algebra|geometry|measurement|ratios|statistics|advanced)-att-[0-9]+$",
+          "description": "Deterministic attempt identifier per section and attempt sequence."
+        },
+        "sectionId": {
+          "type": "string",
+          "enum": ["arithmetic", "fractions", "algebra", "geometry", "measurement", "ratios", "statistics", "advanced"],
+          "description": "Section identifier."
+        },
+        "attemptNumber": {
+          "type": "integer",
+          "description": "Sequential attempt counter for this section exam (1..10000)."
+        },
+        "score": {
+          "type": "integer",
+          "description": "Exam score out of 100."
+        },
+        "correctCount": {
+          "type": "integer",
+          "description": "Number of correctly answered questions (0..30)."
+        },
+        "wrongCount": {
+          "type": "integer",
+          "description": "Number of incorrectly answered or unanswered questions (0..30)."
+        },
+        "passed": {
+          "type": "boolean",
+          "description": "True if score >= 70."
+        },
+        "durationSeconds": {
+          "type": "integer",
+          "description": "Elapsed exam duration in seconds (0..1800)."
+        },
+        "pointsAwarded": {
+          "type": "integer",
+          "description": "Total new points awarded for this attempt (0, 50, 200, or 250)."
+        },
+        "timedOut": {
+          "type": "boolean",
+          "description": "True if auto-submitted due to the 30-minute countdown reaching zero."
+        },
+        "submittedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of exam submission."
+        }
+      },
+      "required": [
+        "uid",
+        "attemptId",
+        "sectionId",
+        "attemptNumber",
+        "score",
+        "correctCount",
+        "wrongCount",
+        "passed",
+        "durationSeconds",
+        "pointsAwarded",
+        "timedOut",
+        "submittedAt"
+      ]
+    },
+    "DailyChallengeAttempt": {
+      "title": "DailyChallengeAttempt",
+      "description": "Immutable record of a learner's submission for a specific calendar day's 10-question Daily Math Challenge.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Owner Firebase Auth UID."
+        },
+        "dateKey": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^20[2-9][0-9]-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$",
+          "description": "Calendar date identifier (YYYY-MM-DD)."
+        },
+        "score": {
+          "type": "integer",
+          "description": "Challenge score out of 100."
+        },
+        "correctCount": {
+          "type": "integer",
+          "description": "Correct answers out of 10."
+        },
+        "wrongCount": {
+          "type": "integer",
+          "description": "Wrong or unanswered questions out of 10."
+        },
+        "passed": {
+          "type": "boolean",
+          "description": "True when score >= 70."
+        },
+        "perfect": {
+          "type": "boolean",
+          "description": "True when score == 100 (10/10)."
+        },
+        "durationSeconds": {
+          "type": "integer",
+          "description": "Elapsed time in seconds (0..600)."
+        },
+        "pointsAwarded": {
+          "type": "integer",
+          "description": "New points awarded for this day (0, 50, or 75)."
+        },
+        "timedOut": {
+          "type": "boolean",
+          "description": "True if auto-submitted when the 10-minute timer expired."
+        },
+        "submittedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of challenge submission."
+        }
+      },
+      "required": [
+        "uid",
+        "dateKey",
+        "score",
+        "correctCount",
+        "wrongCount",
+        "passed",
+        "perfect",
+        "durationSeconds",
+        "pointsAwarded",
+        "timedOut",
+        "submittedAt"
+      ]
+    },
+    "DailyChallengeStats": {
+      "title": "DailyChallengeStats",
+      "description": "Tracks consecutive Daily Challenge streak count, longest streak, completion counters, and 7/30-day milestone badges.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Owner Firebase Auth UID."
+        },
+        "currentStreak": {
+          "type": "integer",
+          "description": "Current consecutive days won."
+        },
+        "longestStreak": {
+          "type": "integer",
+          "description": "Highest consecutive days won."
+        },
+        "totalDailyCompleted": {
+          "type": "integer",
+          "description": "Total days won across history."
+        },
+        "totalDailyAttempted": {
+          "type": "integer",
+          "description": "Total distinct daily challenges submitted."
+        },
+        "lastWonDate": {
+          "type": "string",
+          "maxLength": 10,
+          "description": "Most recent YYYY-MM-DD won, or empty string."
+        },
+        "lastAttemptDate": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^20[2-9][0-9]-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$",
+          "description": "Most recent YYYY-MM-DD submitted."
+        },
+        "badge7Unlocked": {
+          "type": "boolean",
+          "description": "Unlocked when longestStreak reaches 7."
+        },
+        "badge30Unlocked": {
+          "type": "boolean",
+          "description": "Unlocked when longestStreak reaches 30."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of latest update."
+        }
+      },
+      "required": [
+        "uid",
+        "currentStreak",
+        "longestStreak",
+        "totalDailyCompleted",
+        "totalDailyAttempted",
+        "lastWonDate",
+        "lastAttemptDate",
+        "badge7Unlocked",
+        "badge30Unlocked",
+        "updatedAt"
+      ]
+    },
+    "UserAchievement": {
+      "title": "UserAchievement",
+      "description": "Immutable record of an unlocked milestone achievement or honorary medal earned through verified learner progression.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Owner Firebase Auth UID."
+        },
+        "achievementId": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 40,
+          "pattern": "^(ach-(first-stage|10-stages|50-stages|100-stages|section-complete|all-sections|exam-perfect|daily-7|daily-30)|medal-(bronze|silver|gold|genius|math-king|challenge|excellence))$",
+          "description": "Deterministic achievement or medal identifier."
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["achievement", "medal"],
+          "description": "Distinguishes progression achievements from honorary medals."
+        },
+        "triggerRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Source reference verifying the condition (e.g., sectionId for exam_perfect, or 'progress')."
+        },
+        "unlockedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the achievement or medal was earned."
+        }
+      },
+      "required": ["uid", "achievementId", "kind", "triggerRef", "unlockedAt"]
+    },
+    "MasterCertificate": {
+      "title": "MasterCertificate",
+      "description": "Immutable grand completion certificate issued only after completing all 8 sections (240 stages) and passing all 8 comprehensive section final exams.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Owner Firebase Auth UID."
+        },
+        "certDocId": {
+          "type": "string",
+          "enum": ["all-sections"],
+          "description": "Fixed singleton certificate document identifier."
+        },
+        "certificateId": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Unique printable certificate reference number."
+        },
+        "averageExamScore": {
+          "type": "integer",
+          "description": "Mean best score across all 8 section final exams (70..100)."
+        },
+        "completedSectionsCount": {
+          "type": "integer",
+          "description": "Must equal 8."
+        },
+        "totalCompletedStages": {
+          "type": "integer",
+          "description": "Must equal 240."
+        },
+        "issuedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of grand certificate issuance."
+        }
+      },
+      "required": [
+        "uid",
+        "certDocId",
+        "certificateId",
+        "averageExamScore",
+        "completedSectionsCount",
+        "totalCompletedStages",
+        "issuedAt"
+      ]
+    },
+    "UserPreferences": {
+      "title": "UserPreferences",
+      "description": "Owner-only appearance theme, notification controls, and best-known global rank baseline for rank improvement alerts.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Owner Firebase Auth UID."
+        },
+        "themeMode": {
+          "type": "string",
+          "enum": ["dark", "light", "auto"],
+          "description": "Selected visual appearance mode."
+        },
+        "notificationsEnabled": {
+          "type": "boolean",
+          "description": "Master toggle enabling or pausing in-app notifications."
+        },
+        "notifyDailyReminder": {
+          "type": "boolean",
+          "description": "Toggle for daily challenge reminder notifications."
+        },
+        "notifyStageUnlock": {
+          "type": "boolean",
+          "description": "Toggle for newly unlocked stage alerts."
+        },
+        "notifyStageWinPoints": {
+          "type": "boolean",
+          "description": "Toggle for stage win and earned points alerts."
+        },
+        "notifyMedalsCerts": {
+          "type": "boolean",
+          "description": "Toggle for medal, achievement, and certificate alerts."
+        },
+        "notifyExamsChallenges": {
+          "type": "boolean",
+          "description": "Toggle for passed exam and new challenge alerts."
+        },
+        "notifyRankUp": {
+          "type": "boolean",
+          "description": "Toggle for global leaderboard rank advancement alerts."
+        },
+        "pushAlertsEnabled": {
+          "type": "boolean",
+          "description": "User opt-in preference for browser/system notifications when supported."
+        },
+        "bestGlobalRank": {
+          "type": "integer",
+          "description": "Best recorded global rank baseline (0 when unset)."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of latest preference update."
+        }
+      },
+      "required": [
+        "uid",
+        "themeMode",
+        "notificationsEnabled",
+        "notifyDailyReminder",
+        "notifyStageUnlock",
+        "notifyStageWinPoints",
+        "notifyMedalsCerts",
+        "notifyExamsChallenges",
+        "notifyRankUp",
+        "pushAlertsEnabled",
+        "bestGlobalRank",
+        "updatedAt"
+      ]
+    },
+    "UserNotification": {
+      "title": "UserNotification",
+      "description": "Deterministic owner-only notification event tied to real learner milestones, rewards, exams, daily reminders, or leaderboard advancement.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Owner Firebase Auth UID."
+        },
+        "id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 80,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Deterministic notification identifier preventing duplicate event creation."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "stage_unlock",
+            "stage_win",
+            "points_earned",
+            "medal_earned",
+            "exam_pass",
+            "certificate_earned",
+            "daily_reminder",
+            "rank_up",
+            "new_challenges"
+          ],
+          "description": "Notification event category."
+        },
+        "titleAr": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 140,
+          "description": "Arabic notification headline."
+        },
+        "titleEn": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 140,
+          "description": "English notification headline."
+        },
+        "bodyAr": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 320,
+          "description": "Arabic notification message."
+        },
+        "bodyEn": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 320,
+          "description": "English notification message."
+        },
+        "refId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Related progression entity reference."
+        },
+        "targetScreen": {
+          "type": "string",
+          "enum": ["home", "sections", "question-bank", "genius-challenges", "daily", "duels", "section", "exams", "achievements", "leaderboard", "profile", "settings"],
+          "description": "Destination screen opened when tapping this notification."
+        },
+        "targetSectionId": {
+          "type": "string",
+          "maxLength": 24,
+          "description": "Optional section identifier for section-scoped destinations (empty string if none)."
+        },
+        "read": {
+          "type": "boolean",
+          "description": "Whether the learner has read the notification."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of notification creation."
+        }
+      },
+      "required": [
+        "uid",
+        "id",
+        "type",
+        "titleAr",
+        "titleEn",
+        "bodyAr",
+        "bodyEn",
+        "refId",
+        "targetScreen",
+        "targetSectionId",
+        "read",
+        "createdAt"
+      ]
+    },
+    "DuelMatch": {
+      "title": "DuelMatch",
+      "description": "Real-time 1v1 competitive math duel between two verified learners sharing deterministic questions, timed completion, and tamper-resistant winner resolution.",
+      "type": "object",
+      "properties": {
+        "duelId": { "type": "string", "minLength": 8, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "participantUids": { "type": "array", "items": { "type": "string" } },
+        "challengerUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "challengerName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "challengerCountry": { "type": "string", "minLength": 2, "maxLength": 3 },
+        "challengerAvatar": { "type": "string", "minLength": 1, "maxLength": 50 },
+        "opponentUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "opponentName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "opponentCountry": { "type": "string", "minLength": 2, "maxLength": 3 },
+        "opponentAvatar": { "type": "string", "minLength": 1, "maxLength": 50 },
+        "sectionId": {
+          "type": "string",
+          "enum": ["arithmetic", "fractions", "algebra", "geometry", "measurement", "ratios", "statistics", "advanced"]
+        },
+        "questionCount": { "type": "integer" },
+        "durationSeconds": { "type": "integer" },
+        "questionSeed": { "type": "integer" },
+        "status": { "type": "string", "enum": ["pending", "active", "completed", "declined", "cancelled"] },
+        "challengerSubmitted": { "type": "boolean" },
+        "challengerCorrect": { "type": "integer" },
+        "challengerScore": { "type": "integer" },
+        "challengerDurationSec": { "type": "integer" },
+        "challengerRewardClaimed": { "type": "boolean" },
+        "opponentSubmitted": { "type": "boolean" },
+        "opponentCorrect": { "type": "integer" },
+        "opponentScore": { "type": "integer" },
+        "opponentDurationSec": { "type": "integer" },
+        "opponentRewardClaimed": { "type": "boolean" },
+        "winnerUid": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "duelId", "participantUids", "challengerUid", "challengerName", "challengerCountry",
+        "challengerAvatar", "opponentUid", "opponentName", "opponentCountry", "opponentAvatar",
+        "sectionId", "questionCount", "durationSeconds", "questionSeed", "status",
+        "challengerSubmitted", "challengerCorrect", "challengerScore", "challengerDurationSec", "challengerRewardClaimed",
+        "opponentSubmitted", "opponentCorrect", "opponentScore", "opponentDurationSec", "opponentRewardClaimed",
+        "winnerUid", "createdAt", "updatedAt"
+      ]
+    },
+    "DuelCompetitorStats": {
+      "title": "DuelCompetitorStats",
+      "description": "Public non-PII competitive duel ranking stats per verified learner.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "countryCode": { "type": "string", "minLength": 2, "maxLength": 3 },
+        "avatarId": { "type": "string", "minLength": 1, "maxLength": 50 },
+        "photoUrl": { "type": "string", "maxLength": 512 },
+        "wins": { "type": "integer" },
+        "draws": { "type": "integer" },
+        "losses": { "type": "integer" },
+        "matchesPlayed": { "type": "integer" },
+        "duelPoints": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "uid", "displayName", "countryCode", "avatarId", "photoUrl",
+        "wins", "draws", "losses", "matchesPlayed", "duelPoints", "updatedAt"
+      ]
+    },
+    "BankTierProgress": {
+      "title": "BankTierProgress",
+      "description": "Tracks verified mastery, scores, seen question IDs, and one-time rewards per Global Question Bank grade tier or Genius Challenge.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "bankKey": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 64,
+          "pattern": "^(g(0[1-9]|1[0-8])-(very_easy|easy|medium|hard|very_hard)|genius-[a-z0-9_\\-]+)$"
+        },
+        "gradeId": {
+          "type": "string",
+          "enum": ["g01", "g02", "g03", "g04", "g05", "g06", "g07", "g08", "g09", "g10", "g11", "g12", "g13", "g14", "g15", "g16", "g17", "g18"]
+        },
+        "tier": {
+          "type": "string",
+          "enum": ["very_easy", "easy", "medium", "hard", "very_hard"]
+        },
+        "attempts": { "type": "integer" },
+        "bestScore": { "type": "integer" },
+        "lastScore": { "type": "integer" },
+        "mastered": { "type": "boolean" },
+        "rewardClaimed": { "type": "boolean" },
+        "correctCount": { "type": "integer" },
+        "totalAnswered": { "type": "integer" },
+        "seenQuestionIds": { "type": "array", "items": { "type": "string" } },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "uid", "bankKey", "gradeId", "tier", "attempts", "bestScore", "lastScore",
+        "mastered", "rewardClaimed", "correctCount", "totalAnswered", "seenQuestionIds", "updatedAt"
+      ]
+    },
+    "AdaptiveProfileSummary": {
+      "title": "AdaptiveProfileSummary",
+      "description": "Tracks adaptive grade/difficulty recommendation, cumulative question bank mastery, and topic-by-topic accuracy.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "recommendedGradeNumber": { "type": "integer" },
+        "recommendedTier": {
+          "type": "string",
+          "enum": ["very_easy", "easy", "medium", "hard", "very_hard"]
+        },
+        "totalBankQuestionsAnswered": { "type": "integer" },
+        "totalBankCorrect": { "type": "integer" },
+        "totalQuizzesCompleted": { "type": "integer" },
+        "geniusSolvedCount": { "type": "integer" },
+        "topicStats": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "uid", "recommendedGradeNumber", "recommendedTier", "totalBankQuestionsAnswered",
+        "totalBankCorrect", "totalQuizzesCompleted", "geniusSolvedCount", "topicStats", "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Stores learner profile, selected country, language preference, spendable points, lifetime earned points, equipped rewards, and mastery counts."
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Isolated PII subcollection storing owner-only email and phone metadata."
+    },
+    "/users/{userId}/stageProgress/{stageId}": {
+      "schema": { "$ref": "#/entities/StageProgress" },
+      "description": "Per-stage attempt results, stars, pass state, and anti-duplicate reward locks."
+    },
+    "/users/{userId}/sectionProgress/{sectionId}": {
+      "schema": { "$ref": "#/entities/SectionProgress" },
+      "description": "Per-section unlocked stage level, completed stages count, section completion bonus lock, final exam results, and certificate metadata."
+    },
+    "/users/{userId}/examAttempts/{attemptId}": {
+      "schema": { "$ref": "#/entities/ExamAttempt" },
+      "description": "Immutable log of each independent 30-question section final exam attempt."
+    },
+    "/users/{userId}/dailyChallenges/{dateKey}": {
+      "schema": { "$ref": "#/entities/DailyChallengeAttempt" },
+      "description": "Immutable per-day Daily Challenge submission records preventing same-day duplicate rewards or streak counting."
+    },
+    "/users/{userId}/dailyStats/{docId}": {
+      "schema": { "$ref": "#/entities/DailyChallengeStats" },
+      "description": "Summary document tracking consecutive Daily Challenge streak and 7/30-day milestone badges."
+    },
+    "/users/{userId}/achievements/{achievementId}": {
+      "schema": { "$ref": "#/entities/UserAchievement" },
+      "description": "Immutable records of unlocked achievements and earned medals tied to verified learner milestones."
+    },
+    "/users/{userId}/masterCertificates/{certDocId}": {
+      "schema": { "$ref": "#/entities/MasterCertificate" },
+      "description": "Singleton grand completion certificate document issued upon mastering and passing all 8 sections."
+    },
+    "/users/{userId}/purchases/{itemId}": {
+      "schema": { "$ref": "#/entities/RewardPurchase" },
+      "description": "Immutable purchase receipts for reward shop badges, avatars, and titles."
+    },
+    "/users/{userId}/pointTransactions/{txId}": {
+      "schema": { "$ref": "#/entities/PointTransaction" },
+      "description": "Immutable deterministic audit ledger of all point awards and shop deductions."
+    },
+    "/users/{userId}/preferences/{docId}": {
+      "schema": { "$ref": "#/entities/UserPreferences" },
+      "description": "Owner-only theme appearance, notification category preferences, and rank baseline."
+    },
+    "/users/{userId}/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/UserNotification" },
+      "description": "Owner-only chronological alerts feed for progression wins, unlocks, medals, certificates, daily reminders, and leaderboard rank gains."
+    },
+    "/users/{userId}/bankProgress/{bankKey}": {
+      "schema": { "$ref": "#/entities/BankTierProgress" },
+      "description": "Per-grade difficulty tier mastery and World Genius Challenge completion tracking."
+    },
+    "/users/{userId}/adaptiveProfile/{docId}": {
+      "schema": { "$ref": "#/entities/AdaptiveProfileSummary" },
+      "description": "Adaptive learning recommendation state and per-topic accuracy diagnostics."
+    },
+    "/leaderboard/{userId}": {
+      "schema": { "$ref": "#/entities/LeaderboardEntry" },
+      "description": "Non-PII global leaderboard projection synchronized atomically with verified learner profiles."
+    },
+    "/duels/{duelId}": {
+      "schema": { "$ref": "#/entities/DuelMatch" },
+      "description": "Competitive 1v1 math duel matches between two verified students."
+    },
+    "/duelStats/{userId}": {
+      "schema": { "$ref": "#/entities/DuelCompetitorStats" },
+      "description": "Public competitive duel ranking counters per verified learner."
+    }
+  }
+}

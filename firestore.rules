@@ -1,0 +1,1913 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: deny everything by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Global Helpers ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && (
+        request.auth.token.email_verified == true ||
+        (request.auth.token.phone_number is string && request.auth.token.phone_number.size() > 0)
+      );
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidSectionId(sectionId) {
+      return sectionId is string && sectionId in [
+        'arithmetic', 'fractions', 'algebra', 'geometry',
+        'measurement', 'ratios', 'statistics', 'advanced'
+      ];
+    }
+
+    function isValidStageId(stageId) {
+      return stageId is string
+        && stageId.size() >= 3
+        && stageId.size() <= 40
+        && stageId.matches('^(arithmetic|fractions|algebra|geometry|measurement|ratios|statistics|advanced)-s([1-9]|[12][0-9]|30)$');
+    }
+
+    function isValidPhotoUrl(url) {
+      return url is string
+        && url.size() <= 512
+        && (url == '' || url.matches('^https://.+'));
+    }
+
+    function isValidDateKey(dateKey) {
+      return dateKey is string
+        && dateKey.size() == 10
+        && dateKey.matches('^20[2-9][0-9]-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$');
+    }
+
+    function isValidGradeId(gradeId) {
+      return gradeId is string
+        && gradeId.size() == 3
+        && gradeId.matches('^g(0[1-9]|1[0-8])$');
+    }
+
+    function isValidBankTier(tier) {
+      return tier is string
+        && tier in ['very_easy', 'easy', 'medium', 'hard', 'very_hard'];
+    }
+
+    function isValidGradeBankKey(bankKey) {
+      return bankKey is string
+        && bankKey.size() >= 8
+        && bankKey.size() <= 24
+        && bankKey.matches('^g(0[1-9]|1[0-8])-(very_easy|easy|medium|hard|very_hard)$');
+    }
+
+    function isValidGeniusBankKey(bankKey) {
+      return bankKey is string
+        && bankKey.size() >= 8
+        && bankKey.size() <= 64
+        && bankKey.matches('^genius-[a-z0-9_\\-]+$');
+    }
+
+    function isValidBankKey(bankKey) {
+      return isValidGradeBankKey(bankKey) || isValidGeniusBankKey(bankKey);
+    }
+
+    // --- Built-in Starter Avatars & Authoritative Rewards Shop Catalog ---
+    function isValidFreeAvatar(avatarId) {
+      return avatarId in [
+        'avatar-classic', 'avatar-google', 'avatar-pi',
+        'avatar-sigma', 'avatar-delta', 'avatar-omega'
+      ];
+    }
+
+    function isValidShopBadge(itemId) {
+      return itemId in [
+        'badge-spark', 'badge-arithmetic', 'badge-geometry',
+        'badge-scholar', 'badge-olympiad', 'badge-crown'
+      ];
+    }
+
+    function isValidShopAvatar(itemId) {
+      return itemId in [
+        'avatar-nova', 'avatar-owl', 'avatar-prism',
+        'avatar-phoenix', 'avatar-dragon', 'avatar-aurora'
+      ];
+    }
+
+    function isValidShopTitle(itemId) {
+      return itemId in [
+        'title-explorer', 'title-solver', 'title-architect',
+        'title-maestro', 'title-legend', 'title-grandmaster'
+      ];
+    }
+
+    function isValidShopItemForCategory(itemId, category) {
+      return (category == 'badge' && isValidShopBadge(itemId))
+        || (category == 'avatar' && isValidShopAvatar(itemId))
+        || (category == 'title' && isValidShopTitle(itemId));
+    }
+
+    function getShopItemCost(itemId) {
+      return {
+        'badge-spark': 100,
+        'badge-arithmetic': 250,
+        'badge-geometry': 400,
+        'badge-scholar': 600,
+        'badge-olympiad': 1000,
+        'badge-crown': 2000,
+        'avatar-nova': 150,
+        'avatar-owl': 300,
+        'avatar-prism': 450,
+        'avatar-phoenix': 750,
+        'avatar-dragon': 1200,
+        'avatar-aurora': 1800,
+        'title-explorer': 150,
+        'title-solver': 350,
+        'title-architect': 600,
+        'title-maestro': 950,
+        'title-legend': 1500,
+        'title-grandmaster': 2500
+      }[itemId];
+    }
+
+    // --- Validation Blueprints ---
+    function isValidUserProfile(data) {
+      return data.keys().hasAll([
+          'uid', 'displayName', 'countryCode', 'countryNameAr',
+          'countryNameEn', 'preferredLang', 'points', 'totalEarnedPoints',
+          'currentStage', 'completedStagesCount', 'completedSectionsCount',
+          'certificatesCount', 'equippedAvatarId', 'equippedTitleId',
+          'equippedBadgeId', 'photoUrl', 'lastLedgerId',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'displayName', 'countryCode', 'countryNameAr',
+          'countryNameEn', 'preferredLang', 'points', 'totalEarnedPoints',
+          'currentStage', 'completedStagesCount', 'completedSectionsCount',
+          'certificatesCount', 'equippedAvatarId', 'equippedTitleId',
+          'equippedBadgeId', 'photoUrl', 'lastLedgerId',
+          'createdAt', 'updatedAt'
+        ])
+        && data.uid is string
+        && data.uid == request.auth.uid
+        && isValidId(data.uid)
+        && data.displayName is string
+        && data.displayName.size() >= 1
+        && data.displayName.size() <= 100
+        && data.countryCode is string
+        && data.countryCode.size() >= 2
+        && data.countryCode.size() <= 3
+        && data.countryCode.matches('^[A-Z]{2,3}$')
+        && data.countryNameAr is string
+        && data.countryNameAr.size() >= 1
+        && data.countryNameAr.size() <= 100
+        && data.countryNameEn is string
+        && data.countryNameEn.size() >= 1
+        && data.countryNameEn.size() <= 100
+        && data.preferredLang is string
+        && (data.preferredLang == 'ar' || data.preferredLang == 'en')
+        && data.points is int
+        && data.points >= 0
+        && data.points <= 500000
+        && data.totalEarnedPoints is int
+        && data.totalEarnedPoints >= 0
+        && data.totalEarnedPoints <= 500000
+        && data.totalEarnedPoints >= data.points
+        && data.currentStage is int
+        && data.currentStage >= 1
+        && data.currentStage <= 240
+        && data.completedStagesCount is int
+        && data.completedStagesCount >= 0
+        && data.completedStagesCount <= 240
+        && data.completedSectionsCount is int
+        && data.completedSectionsCount >= 0
+        && data.completedSectionsCount <= 8
+        && data.certificatesCount is int
+        && data.certificatesCount >= 0
+        && data.certificatesCount <= 8
+        && data.equippedAvatarId is string
+        && data.equippedAvatarId.size() >= 1
+        && data.equippedAvatarId.size() <= 50
+        && data.equippedAvatarId.matches('^[a-z0-9\\-]+$')
+        && (isValidFreeAvatar(data.equippedAvatarId) || isValidShopAvatar(data.equippedAvatarId))
+        && data.equippedTitleId is string
+        && data.equippedTitleId.size() <= 50
+        && (data.equippedTitleId == '' || isValidShopTitle(data.equippedTitleId))
+        && data.equippedBadgeId is string
+        && data.equippedBadgeId.size() <= 50
+        && (data.equippedBadgeId == '' || isValidShopBadge(data.equippedBadgeId))
+        && isValidPhotoUrl(data.photoUrl)
+        && data.lastLedgerId is string
+        && data.lastLedgerId.size() >= 1
+        && data.lastLedgerId.size() <= 80
+        && data.lastLedgerId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivateInfo(data) {
+      return data.keys().hasAll(['uid', 'authProvider', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'phoneNumber', 'authProvider', 'updatedAt'])
+        && data.uid is string
+        && data.uid == request.auth.uid
+        && isValidId(data.uid)
+        && data.authProvider is string
+        && (data.authProvider == 'google.com' || data.authProvider == 'phone')
+        && (!('email' in data) || (data.email is string && data.email.size() <= 254))
+        && (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 32))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLeaderboardEntry(data, userId) {
+      return data.keys().hasAll([
+          'uid', 'displayName', 'countryCode', 'avatarId', 'photoUrl',
+          'titleId', 'badgeId', 'totalEarnedPoints', 'completedStages',
+          'completedSections', 'certificatesCount', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'displayName', 'countryCode', 'avatarId', 'photoUrl',
+          'titleId', 'badgeId', 'totalEarnedPoints', 'completedStages',
+          'completedSections', 'certificatesCount', 'updatedAt'
+        ])
+        && data.uid is string
+        && data.uid == request.auth.uid
+        && data.uid == userId
+        && isValidId(data.uid)
+        && data.displayName is string
+        && data.displayName.size() >= 1
+        && data.displayName.size() <= 100
+        && data.countryCode is string
+        && data.countryCode.size() >= 2
+        && data.countryCode.size() <= 3
+        && data.countryCode.matches('^[A-Z]{2,3}$')
+        && data.avatarId is string
+        && data.avatarId.size() >= 1
+        && data.avatarId.size() <= 50
+        && isValidPhotoUrl(data.photoUrl)
+        && data.titleId is string
+        && data.titleId.size() <= 50
+        && data.badgeId is string
+        && data.badgeId.size() <= 50
+        && data.totalEarnedPoints is int
+        && data.totalEarnedPoints >= 0
+        && data.totalEarnedPoints <= 500000
+        && data.completedStages is int
+        && data.completedStages >= 0
+        && data.completedStages <= 240
+        && data.completedSections is int
+        && data.completedSections >= 0
+        && data.completedSections <= 8
+        && data.certificatesCount is int
+        && data.certificatesCount >= 0
+        && data.certificatesCount <= 8
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRewardPurchase(data, itemId) {
+      return data.keys().hasAll(['uid', 'itemId', 'category', 'cost', 'purchasedAt'])
+        && data.keys().hasOnly(['uid', 'itemId', 'category', 'cost', 'purchasedAt'])
+        && data.uid is string
+        && data.uid == request.auth.uid
+        && isValidId(data.uid)
+        && data.itemId is string
+        && data.itemId == itemId
+        && data.itemId.size() <= 50
+        && data.category is string
+        && isValidShopItemForCategory(itemId, data.category)
+        && data.cost is int
+        && data.cost == getShopItemCost(itemId)
+        && data.purchasedAt is timestamp;
+    }
+
+    function isValidPointTransaction(data, txId) {
+      return data.keys().hasAll(['uid', 'txId', 'type', 'refId', 'amount', 'balanceAfter', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'txId', 'type', 'refId', 'amount', 'balanceAfter', 'createdAt'])
+        && data.uid is string
+        && data.uid == request.auth.uid
+        && isValidId(data.uid)
+        && data.txId is string
+        && data.txId == txId
+        && data.txId.size() >= 3
+        && data.txId.size() <= 80
+        && data.type is string
+        && data.refId is string
+        && data.refId.size() >= 1
+        && data.refId.size() <= 64
+        && data.refId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.amount is int
+        && data.balanceAfter is int
+        && data.balanceAfter >= 0
+        && data.balanceAfter <= 500000
+        && data.createdAt is timestamp;
+    }
+
+    function isValidStageProgress(data, stageId) {
+      return data.keys().hasAll([
+          'uid', 'stageId', 'sectionId', 'stageNumber',
+          'bestScore', 'lastScore', 'bestStars', 'passed',
+          'attempts', 'rewardClaimed', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'stageId', 'sectionId', 'stageNumber',
+          'bestScore', 'lastScore', 'bestStars', 'passed',
+          'attempts', 'rewardClaimed', 'perfectRewardClaimed',
+          'totalCorrect', 'totalWrong', 'createdAt', 'updatedAt'
+        ])
+        && data.uid is string
+        && data.uid == request.auth.uid
+        && isValidId(data.uid)
+        && isValidStageId(data.stageId)
+        && data.stageId == stageId
+        && isValidSectionId(data.sectionId)
+        && data.stageId.matches('^' + data.sectionId + '-s' + string(data.stageNumber) + '$')
+        && data.stageNumber is int
+        && data.stageNumber >= 1
+        && data.stageNumber <= 30
+        && data.bestScore is int
+        && data.bestScore >= 0
+        && data.bestScore <= 100
+        && data.lastScore is int
+        && data.lastScore >= 0
+        && data.lastScore <= 100
+        && data.bestScore >= data.lastScore
+        && data.bestStars is int
+        && data.bestStars >= 0
+        && data.bestStars <= 3
+        && data.passed is bool
+        && (!data.passed || data.bestScore >= 70)
+        && data.attempts is int
+        && data.attempts >= 1
+        && data.attempts <= 10000
+        && data.rewardClaimed is bool
+        && (!data.rewardClaimed || data.passed)
+        && (!('perfectRewardClaimed' in data) || (data.perfectRewardClaimed is bool && (!data.perfectRewardClaimed || data.bestScore == 100)))
+        && (!('totalCorrect' in data) || (data.totalCorrect is int && data.totalCorrect >= 0 && data.totalCorrect <= data.attempts * 10))
+        && (!('totalWrong' in data) || (data.totalWrong is int && data.totalWrong >= 0 && data.totalWrong <= data.attempts * 10))
+        && ((!('totalCorrect' in data) && !('totalWrong' in data)) || ('totalCorrect' in data && 'totalWrong' in data && (data.totalCorrect + data.totalWrong) <= data.attempts * 10))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSectionProgress(data, sectionId) {
+      return data.keys().hasAll([
+          'uid', 'sectionId', 'unlockedStage', 'completedStagesCount',
+          'totalStars', 'examBestScore', 'examLastScore', 'examAttempts',
+          'examPassed', 'examRewardClaimed', 'certificateId',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'sectionId', 'unlockedStage', 'completedStagesCount',
+          'totalStars', 'sectionRewardClaimed', 'examBestScore', 'examLastScore',
+          'examAttempts', 'examPassed', 'examRewardClaimed',
+          'examPerfectRewardClaimed', 'certificateId', 'lastExamAt',
+          'createdAt', 'updatedAt'
+        ])
+        && data.uid is string
+        && data.uid == request.auth.uid
+        && isValidId(data.uid)
+        && isValidSectionId(data.sectionId)
+        && data.sectionId == sectionId
+        && data.unlockedStage is int
+        && data.unlockedStage >= 1
+        && data.unlockedStage <= 30
+        && data.completedStagesCount is int
+        && data.completedStagesCount >= 0
+        && data.completedStagesCount <= 30
+        && data.unlockedStage >= data.completedStagesCount
+        && data.totalStars is int
+        && data.totalStars >= 0
+        && data.totalStars <= 90
+        && (!('sectionRewardClaimed' in data) || (data.sectionRewardClaimed is bool && (!data.sectionRewardClaimed || data.completedStagesCount == 30)))
+        && data.examBestScore is int
+        && data.examBestScore >= 0
+        && data.examBestScore <= 100
+        && data.examLastScore is int
+        && data.examLastScore >= 0
+        && data.examLastScore <= 100
+        && data.examBestScore >= data.examLastScore
+        && data.examAttempts is int
+        && data.examAttempts >= 0
+        && data.examAttempts <= 10000
+        && (data.examAttempts == 0 || data.completedStagesCount == 30)
+        && data.examPassed is bool
+        && (!data.examPassed || (data.completedStagesCount == 30 && data.examBestScore >= 70))
+        && data.examRewardClaimed is bool
+        && (!data.examRewardClaimed || data.examPassed)
+        && (!('examPerfectRewardClaimed' in data) || (data.examPerfectRewardClaimed is bool && (!data.examPerfectRewardClaimed || (data.completedStagesCount == 30 && data.examBestScore == 100))))
+        && data.certificateId is string
+        && data.certificateId.size() <= 64
+        && (data.certificateId == '' || data.examPassed)
+        && (!('lastExamAt' in data) || data.lastExamAt is timestamp)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidExamAttempt(data, attemptId) {
+      return data.keys().hasAll([
+          'uid', 'attemptId', 'sectionId', 'attemptNumber',
+          'score', 'correctCount', 'wrongCount', 'passed',
+          'durationSeconds', 'pointsAwarded', 'timedOut', 'submittedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'attemptId', 'sectionId', 'attemptNumber',
+          'score', 'correctCount', 'wrongCount', 'passed',
+          'durationSeconds', 'pointsAwarded', 'timedOut', 'submittedAt'
+        ])
+        && data.uid is string
+        && data.uid == request.auth.uid
+        && isValidId(data.uid)
+        && data.attemptId is string
+        && data.attemptId == attemptId
+        && data.attemptId.size() >= 5
+        && data.attemptId.size() <= 64
+        && isValidSectionId(data.sectionId)
+        && data.attemptNumber is int
+        && data.attemptNumber >= 1
+        && data.attemptNumber <= 10000
+        && data.attemptId.matches('^' + data.sectionId + '-att-' + string(data.attemptNumber) + '$')
+        && data.score is int
+        && data.score >= 0
+        && data.score <= 100
+        && data.correctCount is int
+        && data.correctCount >= 0
+        && data.correctCount <= 30
+        && data.wrongCount is int
+        && data.wrongCount >= 0
+        && data.wrongCount <= 30
+        && (data.correctCount + data.wrongCount) == 30
+        && data.passed is bool
+        && data.passed == (data.score >= 70)
+        && data.durationSeconds is int
+        && data.durationSeconds >= 0
+        && data.durationSeconds <= 1800
+        && data.pointsAwarded is int
+        && data.pointsAwarded in [0, 50, 200, 250]
+        && data.timedOut is bool
+        && data.submittedAt is timestamp;
+    }
+
+    function isValidDailyChallengeRecord(data, dateKey) {
+      return data.keys().hasAll([
+          'uid', 'dateKey', 'score', 'correctCount', 'wrongCount',
+          'passed', 'perfect', 'durationSeconds', 'pointsAwarded',
+          'timedOut', 'submittedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'dateKey', 'score', 'correctCount', 'wrongCount',
+          'passed', 'perfect', 'durationSeconds', 'pointsAwarded',
+          'timedOut', 'submittedAt'
+        ])
+        && data.uid is string
+        && data.uid == request.auth.uid
+        && isValidId(data.uid)
+        && isValidDateKey(data.dateKey)
+        && data.dateKey == dateKey
+        && data.score is int
+        && data.score >= 0
+        && data.score <= 100
+        && data.correctCount is int
+        && data.correctCount >= 0
+        && data.correctCount <= 10
+        && data.wrongCount is int
+        && data.wrongCount >= 0
+        && data.wrongCount <= 10
+        && (data.correctCount + data.wrongCount) == 10
+        && data.passed is bool
+        && data.passed == (data.score >= 70)
+        && data.perfect is bool
+        && data.perfect == (data.score == 100)
+        && data.durationSeconds is int
+        && data.durationSeconds >= 0
+        && data.durationSeconds <= 600
+        && data.pointsAwarded is int
+        && (
+          (data.perfect && data.pointsAwarded == 75)
+          || (data.passed && !data.perfect && data.pointsAwarded == 50)
+          || (!data.passed && data.pointsAwarded == 0)
+        )
+        && data.timedOut is bool
+        && data.submittedAt is timestamp;
+    }
+
+    function isValidDailyStreakStats(data) {
+      return data.keys().hasAll([
+          'uid', 'currentStreak', 'longestStreak', 'totalDailyCompleted',
+          'totalDailyAttempted', 'lastWonDate', 'lastAttemptDate',
+          'badge7Unlocked', 'badge30Unlocked', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'currentStreak', 'longestStreak', 'totalDailyCompleted',
+          'totalDailyAttempted', 'lastWonDate', 'lastAttemptDate',
+          'badge7Unlocked', 'badge30Unlocked', 'updatedAt'
+        ])
+        && data.uid is string
+        && data.uid == request.auth.uid
+        && isValidId(data.uid)
+        && data.currentStreak is int
+        && data.currentStreak >= 0
+        && data.currentStreak <= 10000
+        && data.longestStreak is int
+        && data.longestStreak >= data.currentStreak
+        && data.longestStreak <= 10000
+        && data.totalDailyCompleted is int
+        && data.totalDailyCompleted >= 0
+        && data.totalDailyCompleted <= 10000
+        && data.totalDailyAttempted is int
+        && data.totalDailyAttempted >= data.totalDailyCompleted
+        && data.totalDailyAttempted <= 10000
+        && data.lastWonDate is string
+        && (data.lastWonDate == '' || isValidDateKey(data.lastWonDate))
+        && isValidDateKey(data.lastAttemptDate)
+        && data.badge7Unlocked is bool
+        && (!data.badge7Unlocked || data.longestStreak >= 7)
+        && data.badge30Unlocked is bool
+        && (!data.badge30Unlocked || data.longestStreak >= 30)
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAchievementId(achievementId) {
+      return achievementId is string
+        && achievementId.size() >= 5
+        && achievementId.size() <= 40
+        && achievementId in [
+          'ach-first-stage',
+          'ach-10-stages',
+          'ach-50-stages',
+          'ach-100-stages',
+          'ach-section-complete',
+          'ach-all-sections',
+          'ach-exam-perfect',
+          'ach-daily-7',
+          'ach-daily-30',
+          'medal-bronze',
+          'medal-silver',
+          'medal-gold',
+          'medal-genius',
+          'medal-math-king',
+          'medal-challenge',
+          'medal-excellence'
+        ];
+    }
+
+    function isValidUserAchievement(data, achievementId) {
+      return data.keys().hasAll(['uid', 'achievementId', 'kind', 'triggerRef', 'unlockedAt'])
+        && data.keys().hasOnly(['uid', 'achievementId', 'kind', 'triggerRef', 'unlockedAt'])
+        && data.uid is string
+        && data.uid == request.auth.uid
+        && isValidId(data.uid)
+        && isValidAchievementId(data.achievementId)
+        && data.achievementId == achievementId
+        && data.kind is string
+        && (
+          (achievementId.matches('^ach-.*$') && data.kind == 'achievement')
+          || (achievementId.matches('^medal-.*$') && data.kind == 'medal')
+        )
+        && data.triggerRef is string
+        && data.triggerRef.size() >= 1
+        && data.triggerRef.size() <= 64
+        && data.triggerRef.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.unlockedAt is timestamp;
+    }
+
+    function isAchievementEarned(userId, achievementId, triggerRef) {
+      return (achievementId == 'ach-first-stage' && get(/databases/$(database)/documents/users/$(userId)).data.completedStagesCount >= 1)
+        || (achievementId in ['ach-10-stages', 'medal-bronze'] && get(/databases/$(database)/documents/users/$(userId)).data.completedStagesCount >= 10)
+        || (achievementId in ['ach-50-stages', 'medal-silver'] && get(/databases/$(database)/documents/users/$(userId)).data.completedStagesCount >= 50)
+        || (achievementId in ['ach-100-stages', 'medal-gold'] && get(/databases/$(database)/documents/users/$(userId)).data.completedStagesCount >= 100)
+        || (achievementId == 'ach-section-complete' && get(/databases/$(database)/documents/users/$(userId)).data.completedSectionsCount >= 1)
+        || (achievementId in ['ach-all-sections', 'medal-math-king'] && get(/databases/$(database)/documents/users/$(userId)).data.completedSectionsCount == 8)
+        || (achievementId == 'medal-excellence' && get(/databases/$(database)/documents/users/$(userId)).data.completedSectionsCount >= 1 && get(/databases/$(database)/documents/users/$(userId)).data.certificatesCount >= 1)
+        || (achievementId in ['ach-exam-perfect', 'medal-genius'] && isValidSectionId(triggerRef) && get(/databases/$(database)/documents/users/$(userId)/sectionProgress/$(triggerRef)).data.examBestScore == 100)
+        || (achievementId in ['ach-daily-7', 'medal-challenge'] && get(/databases/$(database)/documents/users/$(userId)/dailyStats/summary).data.badge7Unlocked == true)
+        || (achievementId == 'ach-daily-30' && get(/databases/$(database)/documents/users/$(userId)/dailyStats/summary).data.badge30Unlocked == true);
+    }
+
+    function isValidMasterCertificate(data, certDocId) {
+      return data.keys().hasAll([
+          'uid', 'certDocId', 'certificateId', 'averageExamScore',
+          'completedSectionsCount', 'totalCompletedStages', 'issuedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'certDocId', 'certificateId', 'averageExamScore',
+          'completedSectionsCount', 'totalCompletedStages', 'issuedAt'
+        ])
+        && data.uid is string
+        && data.uid == request.auth.uid
+        && isValidId(data.uid)
+        && data.certDocId is string
+        && data.certDocId == 'all-sections'
+        && data.certDocId == certDocId
+        && data.certificateId is string
+        && data.certificateId.size() >= 8
+        && data.certificateId.size() <= 64
+        && data.certificateId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.averageExamScore is int
+        && data.averageExamScore >= 70
+        && data.averageExamScore <= 100
+        && data.completedSectionsCount is int
+        && data.completedSectionsCount == 8
+        && data.totalCompletedStages is int
+        && data.totalCompletedStages == 240
+        && data.issuedAt is timestamp;
+    }
+
+    function isValidUserPreferences(data) {
+      return data.keys().hasAll([
+          'uid', 'themeMode', 'notificationsEnabled', 'notifyDailyReminder',
+          'notifyStageUnlock', 'notifyStageWinPoints', 'notifyMedalsCerts',
+          'notifyExamsChallenges', 'notifyRankUp', 'pushAlertsEnabled',
+          'bestGlobalRank', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'themeMode', 'notificationsEnabled', 'notifyDailyReminder',
+          'notifyStageUnlock', 'notifyStageWinPoints', 'notifyMedalsCerts',
+          'notifyExamsChallenges', 'notifyRankUp', 'pushAlertsEnabled',
+          'bestGlobalRank', 'updatedAt'
+        ])
+        && data.uid is string
+        && data.uid == request.auth.uid
+        && isValidId(data.uid)
+        && data.themeMode is string
+        && data.themeMode in ['dark', 'light', 'auto']
+        && data.notificationsEnabled is bool
+        && data.notifyDailyReminder is bool
+        && data.notifyStageUnlock is bool
+        && data.notifyStageWinPoints is bool
+        && data.notifyMedalsCerts is bool
+        && data.notifyExamsChallenges is bool
+        && data.notifyRankUp is bool
+        && data.pushAlertsEnabled is bool
+        && data.bestGlobalRank is int
+        && data.bestGlobalRank >= 0
+        && data.bestGlobalRank <= 1000000
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserNotification(data, notificationId) {
+      return data.keys().hasAll([
+          'uid', 'id', 'type', 'titleAr', 'titleEn', 'bodyAr', 'bodyEn',
+          'refId', 'targetScreen', 'targetSectionId', 'read', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'id', 'type', 'titleAr', 'titleEn', 'bodyAr', 'bodyEn',
+          'refId', 'targetScreen', 'targetSectionId', 'read', 'createdAt'
+        ])
+        && data.uid is string
+        && data.uid == request.auth.uid
+        && isValidId(data.uid)
+        && data.id is string
+        && data.id == notificationId
+        && data.id.size() >= 3
+        && data.id.size() <= 80
+        && data.id.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.type is string
+        && data.type in [
+          'stage_unlock', 'stage_win', 'points_earned', 'medal_earned',
+          'exam_pass', 'certificate_earned', 'daily_reminder', 'rank_up', 'new_challenges'
+        ]
+        && data.titleAr is string
+        && data.titleAr.size() >= 1
+        && data.titleAr.size() <= 140
+        && data.titleEn is string
+        && data.titleEn.size() >= 1
+        && data.titleEn.size() <= 140
+        && data.bodyAr is string
+        && data.bodyAr.size() >= 1
+        && data.bodyAr.size() <= 320
+        && data.bodyEn is string
+        && data.bodyEn.size() >= 1
+        && data.bodyEn.size() <= 320
+        && data.refId is string
+        && data.refId.size() >= 1
+        && data.refId.size() <= 80
+        && data.refId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.targetScreen is string
+        && data.targetScreen in [
+          'home', 'sections', 'question-bank', 'genius-challenges', 'daily', 'duels', 'section', 'exams', 'achievements', 'leaderboard', 'profile', 'settings'
+        ]
+        && data.targetSectionId is string
+        && data.targetSectionId.size() <= 24
+        && (data.targetSectionId == '' || isValidSectionId(data.targetSectionId))
+        && data.read is bool
+        && data.createdAt is timestamp;
+    }
+
+    function isExpectedDuelWinner(winnerUid, cUid, oUid, cCorrect, oCorrect, cDuration, oDuration) {
+      return (cCorrect > oCorrect && winnerUid == cUid)
+        || (oCorrect > cCorrect && winnerUid == oUid)
+        || (cCorrect == oCorrect && cDuration < oDuration && winnerUid == cUid)
+        || (cCorrect == oCorrect && oDuration < cDuration && winnerUid == oUid)
+        || (cCorrect == oCorrect && cDuration == oDuration && winnerUid == 'draw');
+    }
+
+    function isValidDuelMatch(data, duelId) {
+      return data.keys().hasAll([
+          'duelId', 'participantUids', 'challengerUid', 'challengerName', 'challengerCountry',
+          'challengerAvatar', 'opponentUid', 'opponentName', 'opponentCountry', 'opponentAvatar',
+          'sectionId', 'questionCount', 'durationSeconds', 'questionSeed', 'status',
+          'challengerSubmitted', 'challengerCorrect', 'challengerScore', 'challengerDurationSec', 'challengerRewardClaimed',
+          'opponentSubmitted', 'opponentCorrect', 'opponentScore', 'opponentDurationSec', 'opponentRewardClaimed',
+          'winnerUid', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'duelId', 'participantUids', 'challengerUid', 'challengerName', 'challengerCountry',
+          'challengerAvatar', 'opponentUid', 'opponentName', 'opponentCountry', 'opponentAvatar',
+          'sectionId', 'questionCount', 'durationSeconds', 'questionSeed', 'status',
+          'challengerSubmitted', 'challengerCorrect', 'challengerScore', 'challengerDurationSec', 'challengerRewardClaimed',
+          'opponentSubmitted', 'opponentCorrect', 'opponentScore', 'opponentDurationSec', 'opponentRewardClaimed',
+          'winnerUid', 'createdAt', 'updatedAt'
+        ])
+        && data.duelId is string
+        && data.duelId == duelId
+        && data.duelId.size() >= 8
+        && data.duelId.size() <= 64
+        && data.duelId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.participantUids is list
+        && data.participantUids.size() == 2
+        && data.participantUids[0] == data.challengerUid
+        && data.participantUids[1] == data.opponentUid
+        && isValidId(data.challengerUid)
+        && isValidId(data.opponentUid)
+        && data.challengerUid != data.opponentUid
+        && data.challengerName is string && data.challengerName.size() >= 1 && data.challengerName.size() <= 100
+        && data.challengerCountry is string && data.challengerCountry.size() >= 2 && data.challengerCountry.size() <= 3
+        && data.challengerAvatar is string && data.challengerAvatar.size() >= 1 && data.challengerAvatar.size() <= 50
+        && data.opponentName is string && data.opponentName.size() >= 1 && data.opponentName.size() <= 100
+        && data.opponentCountry is string && data.opponentCountry.size() >= 2 && data.opponentCountry.size() <= 3
+        && data.opponentAvatar is string && data.opponentAvatar.size() >= 1 && data.opponentAvatar.size() <= 50
+        && isValidSectionId(data.sectionId)
+        && data.questionCount is int
+        && data.questionCount in [5, 10, 15]
+        && data.durationSeconds is int
+        && data.durationSeconds in [180, 300, 600]
+        && data.questionSeed is int
+        && data.questionSeed >= 100000
+        && data.questionSeed <= 999999999
+        && data.status is string
+        && data.status in ['pending', 'active', 'completed', 'declined', 'cancelled']
+        && data.challengerSubmitted is bool
+        && data.challengerCorrect is int && data.challengerCorrect >= 0 && data.challengerCorrect <= data.questionCount
+        && data.challengerScore is int && data.challengerScore >= 0 && data.challengerScore <= 100
+        && data.challengerDurationSec is int && data.challengerDurationSec >= 0 && data.challengerDurationSec <= data.durationSeconds
+        && data.challengerRewardClaimed is bool
+        && data.opponentSubmitted is bool
+        && data.opponentCorrect is int && data.opponentCorrect >= 0 && data.opponentCorrect <= data.questionCount
+        && data.opponentScore is int && data.opponentScore >= 0 && data.opponentScore <= 100
+        && data.opponentDurationSec is int && data.opponentDurationSec >= 0 && data.opponentDurationSec <= data.durationSeconds
+        && data.opponentRewardClaimed is bool
+        && data.winnerUid is string
+        && (data.winnerUid == '' || data.winnerUid == 'draw' || data.winnerUid == data.challengerUid || data.winnerUid == data.opponentUid)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDuelStats(data, userId) {
+      return data.keys().hasAll([
+          'uid', 'displayName', 'countryCode', 'avatarId', 'photoUrl',
+          'wins', 'draws', 'losses', 'matchesPlayed', 'duelPoints', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'displayName', 'countryCode', 'avatarId', 'photoUrl',
+          'wins', 'draws', 'losses', 'matchesPlayed', 'duelPoints', 'updatedAt'
+        ])
+        && data.uid is string
+        && data.uid == request.auth.uid
+        && data.uid == userId
+        && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100
+        && data.countryCode is string && data.countryCode.size() >= 2 && data.countryCode.size() <= 3
+        && data.avatarId is string && data.avatarId.size() >= 1 && data.avatarId.size() <= 50
+        && isValidPhotoUrl(data.photoUrl)
+        && data.wins is int && data.wins >= 0 && data.wins <= 100000
+        && data.draws is int && data.draws >= 0 && data.draws <= 100000
+        && data.losses is int && data.losses >= 0 && data.losses <= 100000
+        && data.matchesPlayed is int && data.matchesPlayed == (data.wins + data.draws + data.losses)
+        && data.duelPoints is int && data.duelPoints >= 0 && data.duelPoints <= 500000
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidBankProgress(data, bankKey) {
+      return data.keys().hasAll([
+          'uid', 'bankKey', 'gradeId', 'tier', 'attempts', 'bestScore', 'lastScore',
+          'mastered', 'rewardClaimed', 'correctCount', 'totalAnswered', 'seenQuestionIds', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'bankKey', 'gradeId', 'tier', 'attempts', 'bestScore', 'lastScore',
+          'mastered', 'rewardClaimed', 'correctCount', 'totalAnswered', 'seenQuestionIds', 'updatedAt'
+        ])
+        && data.uid is string
+        && data.uid == request.auth.uid
+        && isValidId(data.uid)
+        && isValidBankKey(data.bankKey)
+        && data.bankKey == bankKey
+        && isValidGradeId(data.gradeId)
+        && isValidBankTier(data.tier)
+        && (
+          isValidGeniusBankKey(bankKey)
+          || data.bankKey == data.gradeId + '-' + data.tier
+        )
+        && data.attempts is int && data.attempts >= 1 && data.attempts <= 10000
+        && data.bestScore is int && data.bestScore >= 0 && data.bestScore <= 100
+        && data.lastScore is int && data.lastScore >= 0 && data.lastScore <= 100
+        && data.bestScore >= data.lastScore
+        && data.mastered is bool && (!data.mastered || data.bestScore >= 70)
+        && data.rewardClaimed is bool && (!data.rewardClaimed || data.mastered)
+        && data.correctCount is int && data.correctCount >= 0 && data.correctCount <= 100000
+        && data.totalAnswered is int && data.totalAnswered >= data.correctCount && data.totalAnswered <= 100000
+        && data.seenQuestionIds is list && data.seenQuestionIds.size() <= 100
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAdaptiveProfile(data) {
+      return data.keys().hasAll([
+          'uid', 'recommendedGradeNumber', 'recommendedTier', 'totalBankQuestionsAnswered',
+          'totalBankCorrect', 'totalQuizzesCompleted', 'geniusSolvedCount', 'topicStats', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'recommendedGradeNumber', 'recommendedTier', 'totalBankQuestionsAnswered',
+          'totalBankCorrect', 'totalQuizzesCompleted', 'geniusSolvedCount', 'topicStats', 'updatedAt'
+        ])
+        && data.uid is string
+        && data.uid == request.auth.uid
+        && isValidId(data.uid)
+        && data.recommendedGradeNumber is int && data.recommendedGradeNumber >= 1 && data.recommendedGradeNumber <= 18
+        && isValidBankTier(data.recommendedTier)
+        && data.totalBankQuestionsAnswered is int && data.totalBankQuestionsAnswered >= 0 && data.totalBankQuestionsAnswered <= 1000000
+        && data.totalBankCorrect is int && data.totalBankCorrect >= 0 && data.totalBankCorrect <= data.totalBankQuestionsAnswered
+        && data.totalQuizzesCompleted is int && data.totalQuizzesCompleted >= 0 && data.totalQuizzesCompleted <= 100000
+        && data.geniusSolvedCount is int && data.geniusSolvedCount >= 0 && data.geniusSolvedCount <= 1000
+        && data.topicStats is map && data.topicStats.keys().size() <= 25
+        && data.updatedAt is timestamp;
+    }
+
+    function isBankTierUnlockedForCreate(userId, data, bankKey) {
+      return isValidGeniusBankKey(bankKey)
+        || data.tier == 'very_easy'
+        || (data.tier == 'easy' && get(/databases/$(database)/documents/users/$(userId)/bankProgress/$(data.gradeId + '-very_easy')).data.mastered == true)
+        || (data.tier == 'medium' && get(/databases/$(database)/documents/users/$(userId)/bankProgress/$(data.gradeId + '-easy')).data.mastered == true)
+        || (data.tier == 'hard' && get(/databases/$(database)/documents/users/$(userId)/bankProgress/$(data.gradeId + '-medium')).data.mastered == true)
+        || (data.tier == 'very_hard' && get(/databases/$(database)/documents/users/$(userId)/bankProgress/$(data.gradeId + '-hard')).data.mastered == true);
+    }
+
+    // --- Collection: /leaderboard/{userId} (Non-PII Global Ranking) ---
+    match /leaderboard/{userId} {
+      allow get: if isValidId(userId) && isSignedIn();
+      allow list: if isSignedIn();
+
+      allow create: if isValidId(userId)
+        && isVerifiedUser()
+        && isOwner(userId)
+        && isValidLeaderboardEntry(incoming(), userId)
+        && incoming().updatedAt == request.time
+        && existsAfter(/databases/$(database)/documents/users/$(userId))
+        && incoming().displayName == getAfter(/databases/$(database)/documents/users/$(userId)).data.displayName
+        && incoming().countryCode == getAfter(/databases/$(database)/documents/users/$(userId)).data.countryCode
+        && incoming().avatarId == getAfter(/databases/$(database)/documents/users/$(userId)).data.equippedAvatarId
+        && incoming().titleId == getAfter(/databases/$(database)/documents/users/$(userId)).data.equippedTitleId
+        && incoming().badgeId == getAfter(/databases/$(database)/documents/users/$(userId)).data.equippedBadgeId
+        && incoming().photoUrl == getAfter(/databases/$(database)/documents/users/$(userId)).data.photoUrl
+        && incoming().totalEarnedPoints == getAfter(/databases/$(database)/documents/users/$(userId)).data.totalEarnedPoints
+        && incoming().completedStages == getAfter(/databases/$(database)/documents/users/$(userId)).data.completedStagesCount
+        && incoming().completedSections == getAfter(/databases/$(database)/documents/users/$(userId)).data.completedSectionsCount
+        && incoming().certificatesCount == getAfter(/databases/$(database)/documents/users/$(userId)).data.certificatesCount;
+
+      allow update: if isValidId(userId)
+        && isVerifiedUser()
+        && isOwner(userId)
+        && isValidLeaderboardEntry(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().totalEarnedPoints >= existing().totalEarnedPoints
+        && incoming().completedStages >= existing().completedStages
+        && incoming().completedSections >= existing().completedSections
+        && incoming().certificatesCount >= existing().certificatesCount
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/users/$(userId))
+        && incoming().displayName == getAfter(/databases/$(database)/documents/users/$(userId)).data.displayName
+        && incoming().countryCode == getAfter(/databases/$(database)/documents/users/$(userId)).data.countryCode
+        && incoming().avatarId == getAfter(/databases/$(database)/documents/users/$(userId)).data.equippedAvatarId
+        && incoming().titleId == getAfter(/databases/$(database)/documents/users/$(userId)).data.equippedTitleId
+        && incoming().badgeId == getAfter(/databases/$(database)/documents/users/$(userId)).data.equippedBadgeId
+        && incoming().photoUrl == getAfter(/databases/$(database)/documents/users/$(userId)).data.photoUrl
+        && incoming().totalEarnedPoints == getAfter(/databases/$(database)/documents/users/$(userId)).data.totalEarnedPoints
+        && incoming().completedStages == getAfter(/databases/$(database)/documents/users/$(userId)).data.completedStagesCount
+        && incoming().completedSections == getAfter(/databases/$(database)/documents/users/$(userId)).data.completedSectionsCount
+        && incoming().certificatesCount == getAfter(/databases/$(database)/documents/users/$(userId)).data.certificatesCount;
+
+      allow delete: if isValidId(userId)
+        && isVerifiedUser()
+        && isOwner(userId)
+        && !existsAfter(/databases/$(database)/documents/users/$(userId));
+    }
+
+    // --- Collection: /users/{userId} ---
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+
+      allow create: if isValidId(userId)
+        && isVerifiedUser()
+        && isOwner(userId)
+        && isValidUserProfile(incoming())
+        && incoming().points == 0
+        && incoming().totalEarnedPoints == 0
+        && incoming().currentStage == 1
+        && incoming().completedStagesCount == 0
+        && incoming().completedSectionsCount == 0
+        && incoming().certificatesCount == 0
+        && incoming().equippedAvatarId == 'avatar-classic'
+        && incoming().equippedTitleId == ''
+        && incoming().equippedBadgeId == ''
+        && incoming().lastLedgerId == 'init'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(userId)
+        && isVerifiedUser()
+        && isOwner(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1A: Profile & country sync (standard)
+          (
+            'totalEarnedPoints' in existing()
+            && incoming().points == existing().points
+            && incoming().totalEarnedPoints == existing().totalEarnedPoints
+            && incoming().currentStage == existing().currentStage
+            && incoming().completedStagesCount == existing().completedStagesCount
+            && incoming().completedSectionsCount == existing().completedSectionsCount
+            && incoming().certificatesCount == existing().certificatesCount
+            && incoming().equippedAvatarId == existing().equippedAvatarId
+            && incoming().equippedTitleId == existing().equippedTitleId
+            && incoming().equippedBadgeId == existing().equippedBadgeId
+            && incoming().lastLedgerId == existing().lastLedgerId
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'displayName', 'countryCode', 'countryNameAr',
+              'countryNameEn', 'preferredLang', 'photoUrl', 'updatedAt'
+            ])
+          )
+          ||
+          // Action 1B: One-time schema migration for pre-existing user profiles
+          (
+            !('totalEarnedPoints' in existing())
+            && incoming().points == existing().points
+            && incoming().totalEarnedPoints == existing().points
+            && incoming().currentStage == existing().currentStage
+            && incoming().equippedAvatarId == 'avatar-classic'
+            && incoming().equippedTitleId == ''
+            && incoming().equippedBadgeId == ''
+            && incoming().lastLedgerId == 'init'
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'displayName', 'countryCode', 'countryNameAr',
+              'countryNameEn', 'preferredLang', 'photoUrl', 'totalEarnedPoints',
+              'completedStagesCount', 'completedSectionsCount', 'certificatesCount',
+              'equippedAvatarId', 'equippedTitleId', 'equippedBadgeId',
+              'lastLedgerId', 'updatedAt'
+            ])
+          )
+          ||
+          // Action 2: Progression reward grant (strictly tied to deterministic immutable pointTransactions)
+          (
+            incoming().points >= existing().points
+            && (incoming().totalEarnedPoints - existing().totalEarnedPoints) == (incoming().points - existing().points)
+            && incoming().currentStage >= existing().currentStage
+            && incoming().completedStagesCount >= existing().completedStagesCount
+            && incoming().completedStagesCount <= existing().completedStagesCount + 1
+            && incoming().completedSectionsCount >= existing().completedSectionsCount
+            && incoming().completedSectionsCount <= existing().completedSectionsCount + 1
+            && incoming().certificatesCount >= existing().certificatesCount
+            && incoming().certificatesCount <= existing().certificatesCount + 1
+            && incoming().lastLedgerId != existing().lastLedgerId
+            && !exists(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId))
+            && existsAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId))
+            && (
+              (
+                (incoming().points - existing().points) == 15
+                && getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.type == 'duel_part'
+                && getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.amount == 15
+              )
+              ||
+              (
+                (incoming().points - existing().points) == 25
+                && getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.type == 'daily_perfect'
+                && getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.amount == 25
+              )
+              ||
+              (
+                (incoming().points - existing().points) == 35
+                && getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.type == 'duel_draw'
+                && getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.amount == 35
+              )
+              ||
+              (
+                (incoming().points - existing().points) == 50
+                && getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.type in ['stage_perfect', 'exam_perfect', 'daily_win', 'bank_tier_mastery']
+                && getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.amount == 50
+              )
+              ||
+              (
+                (incoming().points - existing().points) == 75
+                && (
+                  (
+                    getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.type == 'daily_perfect'
+                    && getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.amount == 25
+                    && !exists(/databases/$(database)/documents/users/$(userId)/pointTransactions/$('daily-win-' + getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.refId))
+                    && existsAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$('daily-win-' + getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.refId))
+                  )
+                  ||
+                  (
+                    getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.type == 'duel_win'
+                    && getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.amount == 75
+                  )
+                )
+              )
+              ||
+              (
+                (incoming().points - existing().points) == 100
+                && getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.type in ['stage_win', 'genius_solve']
+                && getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.amount == 100
+              )
+              ||
+              (
+                (incoming().points - existing().points) == 150
+                && getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.type == 'stage_perfect'
+                && incoming().completedStagesCount == existing().completedStagesCount + 1
+              )
+              ||
+              (
+                (incoming().points - existing().points) == 200
+                && getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.type == 'exam_pass'
+                && getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.amount == 200
+              )
+              ||
+              (
+                (incoming().points - existing().points) == 250
+                && getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.type == 'exam_perfect'
+                && getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.amount == 50
+                && !exists(/databases/$(database)/documents/users/$(userId)/pointTransactions/$('exam-pass-' + getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.refId))
+                && existsAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$('exam-pass-' + getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.refId))
+              )
+              ||
+              (
+                (incoming().points - existing().points) in [500, 550, 600, 650]
+                && getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.type == 'section_complete'
+                && incoming().completedSectionsCount == existing().completedSectionsCount + 1
+              )
+            )
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'points', 'totalEarnedPoints', 'currentStage',
+              'completedStagesCount', 'completedSectionsCount',
+              'certificatesCount', 'lastLedgerId', 'updatedAt'
+            ])
+          )
+          ||
+          // Action 3: Shop purchase deduction (points spent, lifetime score unchanged, receipt created atomically)
+          (
+            incoming().points >= 0
+            && incoming().points < existing().points
+            && incoming().totalEarnedPoints == existing().totalEarnedPoints
+            && incoming().lastLedgerId.matches('^purchase-[a-z0-9\\-]+$')
+            && incoming().lastLedgerId != existing().lastLedgerId
+            && !exists(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId))
+            && existsAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId))
+            && getAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$(incoming().lastLedgerId)).data.amount == (incoming().points - existing().points)
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'points', 'lastLedgerId', 'updatedAt'
+            ])
+          )
+          ||
+          // Action 4: Equip owned digital reward or free starter avatar
+          (
+            incoming().points == existing().points
+            && incoming().totalEarnedPoints == existing().totalEarnedPoints
+            && (
+              isValidFreeAvatar(incoming().equippedAvatarId)
+              || exists(/databases/$(database)/documents/users/$(userId)/purchases/$(incoming().equippedAvatarId))
+            )
+            && (
+              incoming().equippedTitleId == ''
+              || exists(/databases/$(database)/documents/users/$(userId)/purchases/$(incoming().equippedTitleId))
+            )
+            && (
+              incoming().equippedBadgeId == ''
+              || exists(/databases/$(database)/documents/users/$(userId)/purchases/$(incoming().equippedBadgeId))
+            )
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'equippedAvatarId', 'equippedTitleId', 'equippedBadgeId', 'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if isValidId(userId)
+        && isVerifiedUser()
+        && isOwner(userId);
+
+      // --- Subcollection: /users/{userId}/private/{docId} (PII Isolation) ---
+      match /private/{docId} {
+        allow get: if isValidId(userId) && isValidId(docId) && docId == 'info' && isOwner(userId);
+        allow list: if false;
+
+        allow create: if isValidId(userId)
+          && isValidId(docId)
+          && docId == 'info'
+          && isVerifiedUser()
+          && isOwner(userId)
+          && existsAfter(/databases/$(database)/documents/users/$(userId))
+          && isValidUserPrivateInfo(incoming())
+          && incoming().updatedAt == request.time;
+
+        allow update: if isValidId(userId)
+          && isValidId(docId)
+          && docId == 'info'
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidUserPrivateInfo(incoming())
+          && incoming().uid == existing().uid
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'email', 'phoneNumber', 'authProvider', 'updatedAt'
+          ]);
+
+        allow delete: if isValidId(userId)
+          && isValidId(docId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && !existsAfter(/databases/$(database)/documents/users/$(userId));
+      }
+
+      // --- Subcollection: /users/{userId}/stageProgress/{stageId} ---
+      match /stageProgress/{stageId} {
+        allow get: if isValidId(userId) && isValidStageId(stageId) && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId) && existing().uid == request.auth.uid;
+
+        allow create: if isValidId(userId)
+          && isValidStageId(stageId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidStageProgress(incoming(), stageId)
+          && incoming().attempts == 1
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && (
+            incoming().stageNumber == 1
+            || get(/databases/$(database)/documents/users/$(userId)/sectionProgress/$(incoming().sectionId)).data.unlockedStage >= incoming().stageNumber
+          );
+
+        allow update: if isValidId(userId)
+          && isValidStageId(stageId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && isValidStageProgress(incoming(), stageId)
+          && incoming().uid == existing().uid
+          && incoming().stageId == existing().stageId
+          && incoming().sectionId == existing().sectionId
+          && incoming().stageNumber == existing().stageNumber
+          && incoming().createdAt == existing().createdAt
+          && incoming().bestScore >= existing().bestScore
+          && incoming().bestStars >= existing().bestStars
+          && (!existing().passed || incoming().passed)
+          && (!existing().rewardClaimed || incoming().rewardClaimed)
+          && (!('perfectRewardClaimed' in existing()) || !existing().perfectRewardClaimed || incoming().perfectRewardClaimed)
+          && (!('totalCorrect' in existing()) || incoming().totalCorrect >= existing().totalCorrect)
+          && (!('totalWrong' in existing()) || incoming().totalWrong >= existing().totalWrong)
+          && incoming().attempts == existing().attempts + 1
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'bestScore', 'lastScore', 'bestStars', 'passed',
+            'attempts', 'rewardClaimed', 'perfectRewardClaimed',
+            'totalCorrect', 'totalWrong', 'updatedAt'
+          ]);
+
+        allow delete: if isValidId(userId)
+          && isValidStageId(stageId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && !existsAfter(/databases/$(database)/documents/users/$(userId));
+      }
+
+      // --- Subcollection: /users/{userId}/sectionProgress/{sectionId} ---
+      match /sectionProgress/{sectionId} {
+        allow get: if isValidId(userId) && isValidSectionId(sectionId) && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId) && existing().uid == request.auth.uid;
+
+        allow create: if isValidId(userId)
+          && isValidSectionId(sectionId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidSectionProgress(incoming(), sectionId)
+          && incoming().unlockedStage <= 2
+          && incoming().completedStagesCount <= 1
+          && (!('sectionRewardClaimed' in incoming()) || !incoming().sectionRewardClaimed)
+          && incoming().examAttempts == 0
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+
+        allow update: if isValidId(userId)
+          && isValidSectionId(sectionId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && isValidSectionProgress(incoming(), sectionId)
+          && incoming().uid == existing().uid
+          && incoming().sectionId == existing().sectionId
+          && incoming().createdAt == existing().createdAt
+          && incoming().unlockedStage >= existing().unlockedStage
+          && incoming().unlockedStage <= existing().unlockedStage + 1
+          && incoming().completedStagesCount >= existing().completedStagesCount
+          && incoming().completedStagesCount <= existing().completedStagesCount + 1
+          && incoming().totalStars >= existing().totalStars
+          && (!('sectionRewardClaimed' in existing()) || !existing().sectionRewardClaimed || incoming().sectionRewardClaimed)
+          && incoming().examBestScore >= existing().examBestScore
+          && (!existing().examPassed || incoming().examPassed)
+          && (!existing().examRewardClaimed || incoming().examRewardClaimed)
+          && (!('examPerfectRewardClaimed' in existing()) || !existing().examPerfectRewardClaimed || incoming().examPerfectRewardClaimed)
+          && (existing().certificateId == '' || incoming().certificateId == existing().certificateId)
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'unlockedStage', 'completedStagesCount', 'totalStars',
+            'sectionRewardClaimed', 'examBestScore', 'examLastScore',
+            'examAttempts', 'examPassed', 'examRewardClaimed',
+            'examPerfectRewardClaimed', 'certificateId', 'lastExamAt', 'updatedAt'
+          ]);
+
+        allow delete: if isValidId(userId)
+          && isValidSectionId(sectionId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && !existsAfter(/databases/$(database)/documents/users/$(userId));
+      }
+
+      // --- Subcollection: /users/{userId}/examAttempts/{attemptId} (Immutable Exam History) ---
+      match /examAttempts/{attemptId} {
+        allow get: if isValidId(userId) && isValidId(attemptId) && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId) && existing().uid == request.auth.uid;
+
+        allow create: if isValidId(userId)
+          && isValidId(attemptId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidExamAttempt(incoming(), attemptId)
+          && incoming().submittedAt == request.time
+          && get(/databases/$(database)/documents/users/$(userId)/sectionProgress/$(incoming().sectionId)).data.completedStagesCount == 30
+          && incoming().attemptNumber == get(/databases/$(database)/documents/users/$(userId)/sectionProgress/$(incoming().sectionId)).data.examAttempts + 1
+          && getAfter(/databases/$(database)/documents/users/$(userId)/sectionProgress/$(incoming().sectionId)).data.examAttempts == incoming().attemptNumber;
+
+        allow update: if false;
+
+        allow delete: if isValidId(userId)
+          && isValidId(attemptId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && !existsAfter(/databases/$(database)/documents/users/$(userId));
+      }
+
+      // --- Subcollection: /users/{userId}/dailyChallenges/{dateKey} (One Attempt Per Day) ---
+      match /dailyChallenges/{dateKey} {
+        allow get: if isValidId(userId) && isValidDateKey(dateKey) && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId) && existing().uid == request.auth.uid;
+
+        allow create: if isValidId(userId)
+          && isValidDateKey(dateKey)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidDailyChallengeRecord(incoming(), dateKey)
+          && incoming().submittedAt == request.time;
+
+        allow update: if false;
+
+        allow delete: if isValidId(userId)
+          && isValidDateKey(dateKey)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && !existsAfter(/databases/$(database)/documents/users/$(userId));
+      }
+
+      // --- Subcollection: /users/{userId}/dailyStats/{docId} (Streak & 7/30-Day Badges) ---
+      match /dailyStats/{docId} {
+        allow get: if isValidId(userId) && isValidId(docId) && docId == 'summary' && isOwner(userId);
+        allow list: if false;
+
+        allow create: if isValidId(userId)
+          && isValidId(docId)
+          && docId == 'summary'
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidDailyStreakStats(incoming())
+          && incoming().totalDailyAttempted == 1
+          && incoming().totalDailyCompleted <= 1
+          && incoming().currentStreak <= 1
+          && incoming().updatedAt == request.time
+          && !exists(/databases/$(database)/documents/users/$(userId)/dailyChallenges/$(incoming().lastAttemptDate))
+          && existsAfter(/databases/$(database)/documents/users/$(userId)/dailyChallenges/$(incoming().lastAttemptDate));
+
+        allow update: if isValidId(userId)
+          && isValidId(docId)
+          && docId == 'summary'
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidDailyStreakStats(incoming())
+          && incoming().uid == existing().uid
+          && incoming().lastAttemptDate != existing().lastAttemptDate
+          && incoming().totalDailyAttempted == existing().totalDailyAttempted + 1
+          && incoming().totalDailyCompleted >= existing().totalDailyCompleted
+          && incoming().totalDailyCompleted <= existing().totalDailyCompleted + 1
+          && incoming().longestStreak >= existing().longestStreak
+          && incoming().currentStreak <= existing().currentStreak + 1
+          && (!existing().badge7Unlocked || incoming().badge7Unlocked)
+          && (!existing().badge30Unlocked || incoming().badge30Unlocked)
+          && incoming().updatedAt == request.time
+          && !exists(/databases/$(database)/documents/users/$(userId)/dailyChallenges/$(incoming().lastAttemptDate))
+          && existsAfter(/databases/$(database)/documents/users/$(userId)/dailyChallenges/$(incoming().lastAttemptDate));
+
+        allow delete: if isValidId(userId)
+          && isValidId(docId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && !existsAfter(/databases/$(database)/documents/users/$(userId));
+      }
+
+      // --- Subcollection: /users/{userId}/achievements/{achievementId} (Immutable Verified Achievements & Medals) ---
+      match /achievements/{achievementId} {
+        allow get: if isValidId(userId) && isValidAchievementId(achievementId) && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId) && existing().uid == request.auth.uid;
+
+        allow create: if isValidId(userId)
+          && isValidAchievementId(achievementId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidUserAchievement(incoming(), achievementId)
+          && incoming().unlockedAt == request.time
+          && isAchievementEarned(userId, achievementId, incoming().triggerRef);
+
+        allow update: if false;
+
+        allow delete: if isValidId(userId)
+          && isValidAchievementId(achievementId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && !existsAfter(/databases/$(database)/documents/users/$(userId));
+      }
+
+      // --- Subcollection: /users/{userId}/masterCertificates/{certDocId} (All-8-Sections Grand Certificate) ---
+      match /masterCertificates/{certDocId} {
+        allow get: if isValidId(userId) && isValidId(certDocId) && certDocId == 'all-sections' && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId) && existing().uid == request.auth.uid;
+
+        allow create: if isValidId(userId)
+          && isValidId(certDocId)
+          && certDocId == 'all-sections'
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidMasterCertificate(incoming(), certDocId)
+          && incoming().issuedAt == request.time
+          && get(/databases/$(database)/documents/users/$(userId)).data.completedSectionsCount == 8
+          && get(/databases/$(database)/documents/users/$(userId)).data.certificatesCount == 8;
+
+        allow update: if false;
+
+        allow delete: if isValidId(userId)
+          && isValidId(certDocId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && !existsAfter(/databases/$(database)/documents/users/$(userId));
+      }
+
+      // --- Subcollection: /users/{userId}/purchases/{itemId} (Immutable Reward Receipts) ---
+      match /purchases/{itemId} {
+        allow get: if isValidId(userId) && isValidId(itemId) && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId) && existing().uid == request.auth.uid;
+
+        allow create: if isValidId(userId)
+          && isValidId(itemId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidRewardPurchase(incoming(), itemId)
+          && incoming().purchasedAt == request.time
+          && get(/databases/$(database)/documents/users/$(userId)).data.points >= incoming().cost
+          && getAfter(/databases/$(database)/documents/users/$(userId)).data.points == get(/databases/$(database)/documents/users/$(userId)).data.points - incoming().cost
+          && existsAfter(/databases/$(database)/documents/users/$(userId)/pointTransactions/$('purchase-' + itemId));
+
+        allow update: if false;
+
+        allow delete: if isValidId(userId)
+          && isValidId(itemId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && !existsAfter(/databases/$(database)/documents/users/$(userId));
+      }
+
+      // --- Subcollection: /users/{userId}/pointTransactions/{txId} (Deterministic Audit Ledger) ---
+      match /pointTransactions/{txId} {
+        allow get: if isValidId(userId) && isValidId(txId) && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId) && existing().uid == request.auth.uid;
+
+        allow create: if isValidId(userId)
+          && isValidId(txId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidPointTransaction(incoming(), txId)
+          && incoming().createdAt == request.time
+          && (
+            (
+              incoming().type == 'stage_win'
+              && txId == 'stage-win-' + incoming().refId
+              && isValidStageId(incoming().refId)
+              && incoming().amount == 100
+              && getAfter(/databases/$(database)/documents/users/$(userId)/stageProgress/$(incoming().refId)).data.rewardClaimed == true
+            )
+            ||
+            (
+              incoming().type == 'stage_perfect'
+              && txId == 'stage-perfect-' + incoming().refId
+              && isValidStageId(incoming().refId)
+              && incoming().amount == 50
+              && getAfter(/databases/$(database)/documents/users/$(userId)/stageProgress/$(incoming().refId)).data.bestScore == 100
+              && getAfter(/databases/$(database)/documents/users/$(userId)/stageProgress/$(incoming().refId)).data.perfectRewardClaimed == true
+            )
+            ||
+            (
+              incoming().type == 'section_complete'
+              && txId == 'section-complete-' + incoming().refId
+              && isValidSectionId(incoming().refId)
+              && incoming().amount == 500
+              && getAfter(/databases/$(database)/documents/users/$(userId)/sectionProgress/$(incoming().refId)).data.completedStagesCount == 30
+              && getAfter(/databases/$(database)/documents/users/$(userId)/sectionProgress/$(incoming().refId)).data.sectionRewardClaimed == true
+            )
+            ||
+            (
+              incoming().type == 'exam_pass'
+              && txId == 'exam-pass-' + incoming().refId
+              && isValidSectionId(incoming().refId)
+              && incoming().amount == 200
+              && getAfter(/databases/$(database)/documents/users/$(userId)/sectionProgress/$(incoming().refId)).data.examPassed == true
+              && getAfter(/databases/$(database)/documents/users/$(userId)/sectionProgress/$(incoming().refId)).data.examRewardClaimed == true
+            )
+            ||
+            (
+              incoming().type == 'exam_perfect'
+              && txId == 'exam-perfect-' + incoming().refId
+              && isValidSectionId(incoming().refId)
+              && incoming().amount == 50
+              && getAfter(/databases/$(database)/documents/users/$(userId)/sectionProgress/$(incoming().refId)).data.examBestScore == 100
+              && getAfter(/databases/$(database)/documents/users/$(userId)/sectionProgress/$(incoming().refId)).data.examPerfectRewardClaimed == true
+            )
+            ||
+            (
+              incoming().type == 'daily_win'
+              && txId == 'daily-win-' + incoming().refId
+              && isValidDateKey(incoming().refId)
+              && incoming().amount == 50
+              && getAfter(/databases/$(database)/documents/users/$(userId)/dailyChallenges/$(incoming().refId)).data.passed == true
+            )
+            ||
+            (
+              incoming().type == 'daily_perfect'
+              && txId == 'daily-perfect-' + incoming().refId
+              && isValidDateKey(incoming().refId)
+              && incoming().amount == 25
+              && getAfter(/databases/$(database)/documents/users/$(userId)/dailyChallenges/$(incoming().refId)).data.perfect == true
+            )
+            ||
+            (
+              incoming().type == 'duel_win'
+              && txId == 'duel-win-' + incoming().refId
+              && isValidId(incoming().refId)
+              && incoming().amount == 75
+              && getAfter(/databases/$(database)/documents/duels/$(incoming().refId)).data.status == 'completed'
+              && getAfter(/databases/$(database)/documents/duels/$(incoming().refId)).data.winnerUid == userId
+            )
+            ||
+            (
+              incoming().type == 'duel_draw'
+              && txId == 'duel-draw-' + incoming().refId
+              && isValidId(incoming().refId)
+              && incoming().amount == 35
+              && getAfter(/databases/$(database)/documents/duels/$(incoming().refId)).data.status == 'completed'
+              && getAfter(/databases/$(database)/documents/duels/$(incoming().refId)).data.winnerUid == 'draw'
+              && userId in getAfter(/databases/$(database)/documents/duels/$(incoming().refId)).data.participantUids
+            )
+            ||
+            (
+              incoming().type == 'duel_part'
+              && txId == 'duel-part-' + incoming().refId
+              && isValidId(incoming().refId)
+              && incoming().amount == 15
+              && getAfter(/databases/$(database)/documents/duels/$(incoming().refId)).data.status == 'completed'
+              && userId in getAfter(/databases/$(database)/documents/duels/$(incoming().refId)).data.participantUids
+            )
+            ||
+            (
+              incoming().type == 'bank_tier_mastery'
+              && txId == 'bank-tier-' + incoming().refId
+              && isValidGradeBankKey(incoming().refId)
+              && incoming().amount == 50
+              && getAfter(/databases/$(database)/documents/users/$(userId)/bankProgress/$(incoming().refId)).data.mastered == true
+              && getAfter(/databases/$(database)/documents/users/$(userId)/bankProgress/$(incoming().refId)).data.rewardClaimed == true
+            )
+            ||
+            (
+              incoming().type == 'genius_solve'
+              && txId == 'genius-solve-' + incoming().refId
+              && isValidGeniusBankKey(incoming().refId)
+              && incoming().amount == 100
+              && getAfter(/databases/$(database)/documents/users/$(userId)/bankProgress/$(incoming().refId)).data.mastered == true
+              && getAfter(/databases/$(database)/documents/users/$(userId)/bankProgress/$(incoming().refId)).data.rewardClaimed == true
+            )
+            ||
+            (
+              incoming().type == 'shop_purchase'
+              && txId == 'purchase-' + incoming().refId
+              && (
+                isValidShopBadge(incoming().refId)
+                || isValidShopAvatar(incoming().refId)
+                || isValidShopTitle(incoming().refId)
+              )
+              && incoming().amount == -getShopItemCost(incoming().refId)
+              && existsAfter(/databases/$(database)/documents/users/$(userId)/purchases/$(incoming().refId))
+            )
+          );
+
+        allow update: if false;
+
+        allow delete: if isValidId(userId)
+          && isValidId(txId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && !existsAfter(/databases/$(database)/documents/users/$(userId));
+      }
+
+      // --- Subcollection: /users/{userId}/preferences/{docId} (Theme, Alerts Config & Rank Baseline) ---
+      match /preferences/{docId} {
+        allow get: if isValidId(userId) && isValidId(docId) && docId == 'settings' && isOwner(userId);
+        allow list: if false;
+
+        allow create: if isValidId(userId)
+          && isValidId(docId)
+          && docId == 'settings'
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidUserPreferences(incoming())
+          && incoming().updatedAt == request.time;
+
+        allow update: if isValidId(userId)
+          && isValidId(docId)
+          && docId == 'settings'
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidUserPreferences(incoming())
+          && incoming().uid == existing().uid
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'themeMode', 'notificationsEnabled', 'notifyDailyReminder',
+            'notifyStageUnlock', 'notifyStageWinPoints', 'notifyMedalsCerts',
+            'notifyExamsChallenges', 'notifyRankUp', 'pushAlertsEnabled',
+            'bestGlobalRank', 'updatedAt'
+          ]);
+
+        allow delete: if isValidId(userId)
+          && isValidId(docId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && !existsAfter(/databases/$(database)/documents/users/$(userId));
+      }
+
+      // --- Subcollection: /users/{userId}/notifications/{notificationId} (Owner Alert Feed) ---
+      match /notifications/{notificationId} {
+        allow get: if isValidId(userId) && isValidId(notificationId) && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId) && existing().uid == request.auth.uid;
+
+        allow create: if isValidId(userId)
+          && isValidId(notificationId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidUserNotification(incoming(), notificationId)
+          && incoming().read == false
+          && incoming().createdAt == request.time;
+
+        allow update: if isValidId(userId)
+          && isValidId(notificationId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && isValidUserNotification(incoming(), notificationId)
+          && incoming().uid == existing().uid
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+
+        allow delete: if isValidId(userId)
+          && isValidId(notificationId)
+          && isVerifiedUser()
+          && isOwner(userId);
+      }
+
+      // --- Subcollection: /users/{userId}/bankProgress/{bankKey} (Global Question Bank & Genius Challenges) ---
+      match /bankProgress/{bankKey} {
+        allow get: if isValidId(userId) && isValidBankKey(bankKey) && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId) && existing().uid == request.auth.uid;
+
+        allow create: if isValidId(userId)
+          && isValidBankKey(bankKey)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidBankProgress(incoming(), bankKey)
+          && incoming().attempts == 1
+          && incoming().updatedAt == request.time
+          && isBankTierUnlockedForCreate(userId, incoming(), bankKey);
+
+        allow update: if isValidId(userId)
+          && isValidBankKey(bankKey)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidBankProgress(incoming(), bankKey)
+          && incoming().uid == existing().uid
+          && incoming().bankKey == existing().bankKey
+          && incoming().gradeId == existing().gradeId
+          && incoming().tier == existing().tier
+          && incoming().attempts == existing().attempts + 1
+          && incoming().bestScore >= existing().bestScore
+          && (!existing().mastered || incoming().mastered)
+          && (!existing().rewardClaimed || incoming().rewardClaimed)
+          && incoming().correctCount >= existing().correctCount
+          && incoming().totalAnswered >= existing().totalAnswered
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'attempts', 'bestScore', 'lastScore', 'mastered', 'rewardClaimed',
+            'correctCount', 'totalAnswered', 'seenQuestionIds', 'updatedAt'
+          ]);
+
+        allow delete: if isValidId(userId)
+          && isValidBankKey(bankKey)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && !existsAfter(/databases/$(database)/documents/users/$(userId));
+      }
+
+      // --- Subcollection: /users/{userId}/adaptiveProfile/{docId} (Adaptive Recommendation & Topic Stats) ---
+      match /adaptiveProfile/{docId} {
+        allow get: if isValidId(userId) && isValidId(docId) && docId == 'summary' && isOwner(userId);
+        allow list: if false;
+
+        allow create: if isValidId(userId)
+          && isValidId(docId)
+          && docId == 'summary'
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidAdaptiveProfile(incoming())
+          && incoming().totalQuizzesCompleted <= 1
+          && incoming().geniusSolvedCount <= 1
+          && incoming().updatedAt == request.time;
+
+        allow update: if isValidId(userId)
+          && isValidId(docId)
+          && docId == 'summary'
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidAdaptiveProfile(incoming())
+          && incoming().uid == existing().uid
+          && incoming().totalBankQuestionsAnswered >= existing().totalBankQuestionsAnswered
+          && incoming().totalBankCorrect >= existing().totalBankCorrect
+          && incoming().totalQuizzesCompleted >= existing().totalQuizzesCompleted
+          && incoming().totalQuizzesCompleted <= existing().totalQuizzesCompleted + 1
+          && incoming().geniusSolvedCount >= existing().geniusSolvedCount
+          && incoming().geniusSolvedCount <= existing().geniusSolvedCount + 1
+          && incoming().updatedAt == request.time;
+
+        allow delete: if isValidId(userId)
+          && isValidId(docId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && !existsAfter(/databases/$(database)/documents/users/$(userId));
+      }
+    }
+
+    // --- Collection: /duels/{duelId} (Competitive 1v1 Student Duels) ---
+    match /duels/{duelId} {
+      allow get: if isValidId(duelId) && isSignedIn() && request.auth.uid in existing().participantUids;
+      allow list: if isSignedIn() && request.auth.uid in existing().participantUids;
+
+      allow create: if isValidId(duelId)
+        && isVerifiedUser()
+        && isValidDuelMatch(incoming(), duelId)
+        && incoming().challengerUid == request.auth.uid
+        && exists(/databases/$(database)/documents/users/$(incoming().challengerUid))
+        && exists(/databases/$(database)/documents/users/$(incoming().opponentUid))
+        && incoming().status == 'pending'
+        && incoming().challengerSubmitted == false
+        && incoming().challengerCorrect == 0
+        && incoming().challengerScore == 0
+        && incoming().challengerDurationSec == 0
+        && incoming().challengerRewardClaimed == false
+        && incoming().opponentSubmitted == false
+        && incoming().opponentCorrect == 0
+        && incoming().opponentScore == 0
+        && incoming().opponentDurationSec == 0
+        && incoming().opponentRewardClaimed == false
+        && incoming().winnerUid == ''
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(duelId)
+        && isVerifiedUser()
+        && request.auth.uid in existing().participantUids
+        && isValidDuelMatch(incoming(), duelId)
+        && incoming().duelId == existing().duelId
+        && incoming().participantUids == existing().participantUids
+        && incoming().challengerUid == existing().challengerUid
+        && incoming().opponentUid == existing().opponentUid
+        && incoming().sectionId == existing().sectionId
+        && incoming().questionCount == existing().questionCount
+        && incoming().durationSeconds == existing().durationSeconds
+        && incoming().questionSeed == existing().questionSeed
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // 1. Opponent accepts or declines pending invite
+          (
+            request.auth.uid == existing().opponentUid
+            && existing().status == 'pending'
+            && incoming().status in ['active', 'declined']
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          )
+          ||
+          // 2. Challenger cancels pending invite
+          (
+            request.auth.uid == existing().challengerUid
+            && existing().status == 'pending'
+            && incoming().status == 'cancelled'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          )
+          ||
+          // 3. Challenger submits own answers while duel is active
+          (
+            request.auth.uid == existing().challengerUid
+            && existing().status == 'active'
+            && existing().challengerSubmitted == false
+            && incoming().challengerSubmitted == true
+            && incoming().challengerRewardClaimed == existing().challengerRewardClaimed
+            && incoming().opponentSubmitted == existing().opponentSubmitted
+            && incoming().opponentCorrect == existing().opponentCorrect
+            && incoming().opponentScore == existing().opponentScore
+            && incoming().opponentDurationSec == existing().opponentDurationSec
+            && incoming().opponentRewardClaimed == existing().opponentRewardClaimed
+            && (
+              (
+                existing().opponentSubmitted == false
+                && incoming().status == 'active'
+                && incoming().winnerUid == ''
+              )
+              ||
+              (
+                existing().opponentSubmitted == true
+                && incoming().status == 'completed'
+                && isExpectedDuelWinner(
+                  incoming().winnerUid,
+                  existing().challengerUid,
+                  existing().opponentUid,
+                  incoming().challengerCorrect,
+                  existing().opponentCorrect,
+                  incoming().challengerDurationSec,
+                  existing().opponentDurationSec
+                )
+              )
+            )
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'challengerSubmitted', 'challengerCorrect', 'challengerScore',
+              'challengerDurationSec', 'status', 'winnerUid', 'updatedAt'
+            ])
+          )
+          ||
+          // 4. Opponent submits own answers while duel is active
+          (
+            request.auth.uid == existing().opponentUid
+            && existing().status == 'active'
+            && existing().opponentSubmitted == false
+            && incoming().opponentSubmitted == true
+            && incoming().opponentRewardClaimed == existing().opponentRewardClaimed
+            && incoming().challengerSubmitted == existing().challengerSubmitted
+            && incoming().challengerCorrect == existing().challengerCorrect
+            && incoming().challengerScore == existing().challengerScore
+            && incoming().challengerDurationSec == existing().challengerDurationSec
+            && incoming().challengerRewardClaimed == existing().challengerRewardClaimed
+            && (
+              (
+                existing().challengerSubmitted == false
+                && incoming().status == 'active'
+                && incoming().winnerUid == ''
+              )
+              ||
+              (
+                existing().challengerSubmitted == true
+                && incoming().status == 'completed'
+                && isExpectedDuelWinner(
+                  incoming().winnerUid,
+                  existing().challengerUid,
+                  existing().opponentUid,
+                  existing().challengerCorrect,
+                  incoming().opponentCorrect,
+                  existing().challengerDurationSec,
+                  incoming().opponentDurationSec
+                )
+              )
+            )
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'opponentSubmitted', 'opponentCorrect', 'opponentScore',
+              'opponentDurationSec', 'status', 'winnerUid', 'updatedAt'
+            ])
+          )
+          ||
+          // 5. Challenger marks reward claimed on completed duel
+          (
+            request.auth.uid == existing().challengerUid
+            && existing().status == 'completed'
+            && existing().challengerRewardClaimed == false
+            && incoming().challengerRewardClaimed == true
+            && incoming().diff(existing()).affectedKeys().hasOnly(['challengerRewardClaimed', 'updatedAt'])
+          )
+          ||
+          // 6. Opponent marks reward claimed on completed duel
+          (
+            request.auth.uid == existing().opponentUid
+            && existing().status == 'completed'
+            && existing().opponentRewardClaimed == false
+            && incoming().opponentRewardClaimed == true
+            && incoming().diff(existing()).affectedKeys().hasOnly(['opponentRewardClaimed', 'updatedAt'])
+          )
+        );
+
+      allow delete: if false;
+    }
+
+    // --- Collection: /duelStats/{userId} (Top Competitors Public Stats) ---
+    match /duelStats/{userId} {
+      allow get: if isValidId(userId) && isSignedIn();
+      allow list: if isSignedIn();
+
+      allow create: if isValidId(userId)
+        && isVerifiedUser()
+        && isOwner(userId)
+        && exists(/databases/$(database)/documents/users/$(userId))
+        && isValidDuelStats(incoming(), userId)
+        && incoming().matchesPlayed <= 1
+        && incoming().duelPoints <= 75
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(userId)
+        && isVerifiedUser()
+        && isOwner(userId)
+        && exists(/databases/$(database)/documents/users/$(userId))
+        && isValidDuelStats(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().wins >= existing().wins
+        && incoming().wins <= existing().wins + 1
+        && incoming().draws >= existing().draws
+        && incoming().draws <= existing().draws + 1
+        && incoming().losses >= existing().losses
+        && incoming().losses <= existing().losses + 1
+        && incoming().matchesPlayed >= existing().matchesPlayed
+        && incoming().matchesPlayed <= existing().matchesPlayed + 1
+        && incoming().duelPoints >= existing().duelPoints
+        && incoming().duelPoints <= existing().duelPoints + 75
+        && incoming().updatedAt == request.time;
+
+      allow delete: if isValidId(userId)
+        && isVerifiedUser()
+        && isOwner(userId)
+        && !existsAfter(/databases/$(database)/documents/users/$(userId));
+    }
+  }
+}

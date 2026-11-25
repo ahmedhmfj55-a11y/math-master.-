@@ -1,0 +1,6 @@
+{
+  "name": "Math Master",
+  "description": "Global interactive mathematics education platform with Liquid Glass design, multi-language RTL/LTR support, and real authentication.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
